@@ -1,0 +1,200 @@
+---
+title: "Field et al. 2012 Model parameters"
+output: html_notebook
+---
+
+Look through literature to convert distributions to conform to variable sample spaces.
+
+```{r}
+library(fitdistrplus)
+```
+
+- Other stages were identified from age and size dependent factors related to survival, reproductive capability and infection cost (Tomback et al. 1993, Smith and Hoffman 2000, 2001, Conklin 2004, Kegley and Sniezko 2004, Burns 2006, Smith et al. 2008), where age and size relationships were estimated from tree ring analysis (J. Coop and A. Schoettle, unpublished data).
+
+#### Tomback et al. 1993
+
+**Sleeping child Ridge (max age = 21)**
+
+$$log_{10}(height) = 0.160 + 1.359 * log_{10}(age)$$
+- Calculate average age at height = 1.37 m
+
+$$log_{10}(height) - 0.160 = 1.359 * log_{10}(age)$$
+     
+$$\frac{log_{10}(height) - 0.160}{1.359} = log_{10}(age)$$
+     
+$$age = 10^{\frac{log_{10}(height) - 0.160}{1.359}} $$
+```{r}
+(log10(137) - 0.160) / 1.359
+
+log10(1.45)
+```
+
+
+
+**Sleeping Child Ridge and Road (max age = 25)**
+
+$$log(height) = 0.099 + 0.566 * log(age)$$
+
+$$age = 10^{\frac{log_{10}(height) - 0.099}{0.566}} $$
+     
+**Sleeping Child Ridge**
+
+$$log(age) = 0.110 + 0.558 * log(height)$$
+
+**Saddle Mountain (max age = 21)**
+
+$$log(height) = 0.042 + 1.699 * log(age) $$
+
+
+$$log(age) = 0.111 + 0.500 * log(height)$$
+
+- Calculate average age when height = 137m (breast height) for each location
+
+```{r}
+age <- function(height, int, slope){ #Estimates age from height using data from Tomback et al. 1993 (Table 2)
+  10^(int + slope * log10(height))
+}
+
+age.regression.data <- data.frame(slope  = c(0.558, 0.500),
+                                  int    = c( 0.110, 0.111),
+                                  height = rep(137, 2)) %>%
+  mutate(., Age = age(height, int, slope))
+
+tomback.1993.avg.age.137 <- data.frame(Avg.Age = mean(age.regression.data$Age),
+                                       SD.Age  = sd(age.regression.data$Age))
+
+# 
+# 
+# backtrans.age <- function(height, int, slope){ 
+#   10^((log10(height) - int)/slope)
+# }                                             #Estimates avg. age based on height using regression to estimate height from age.
+# 
+# 
+# Height.regression.data <- data.frame(slope  = c(1.359, 0.566, 1.699),
+#                                      int    = c(0.160, 0.099, 0.042),
+#                                      height = rep(137, 3))
+# 
+# 
+# mutate(Height.regression.data, Age.Back = backtrans.age(height, int, slope))
+```
+
+The average age of individuals at 137cm in Tomback et al. 1993 data is `r round(tomback.1993.avg.age.137$Avg.Age,2)` with a standard deviation of `r round(tomback.1993.avg.age.137$SD.Age,2)`.
+
+
+**Suggests that age for saplings >17 yrs of age, as opposed to the model used in Field et al, which assumes saplings at 21 years.**
+
+#### Smith and Hoffman 2001
+
+#### Primary seedlings (SD1) are defined as 1–4 year olds, a period of low survivorship for most forest trees (Woodward 1987, Shepperd et al. 2006).
+
+
+#####Shepperd et al. 2006 
+- "This study had three objectives: (1) to quantify seed production under seedtree and shelterwood cutting methods; (2) to determine natural seedling establishment with scarification and nonscarifica- tion of the forest floor under seedtree and shelterwood reserve overstories; and (3) to compare the survival and growth of planted ponderosa pine seedlings with scarifica- tion and nonscarification of the forest floor with seedtree and shelterwood reserve overstories."
+  
+* Seed viability varies with year, with low seed fall years producing fewer viable seeds (<200,000 seeds/ha = low seed year). No relationship between seed fall > 200,000/ha and number of viable seeds. 
+    + Viability of seeds when >200k seed/ha:
+    $$\bar{x} = 0.42, range = 0.27-0.51$$
+ 
+
+* Proportion viable taken by animals
+
+    + Only ~14% of annual seed fall is viable and can germinate.
+    + "Of every 100 seeds produced in good seed years ( 200,000 seed/ha), only 40 [42 if using mean] were viable. Animals consumed 48% of these, leaving 21 seeds. Because animals could distinguish viable from nonviable seed without eating them, only 66%, or 14, of these seeds remained capable of germinating. Therefore, only 14% of the average total seedfall remained available to germinate after accounting for all of these factors."
+
+
+#### By age 5, seedling survivorship increases (Maher and Germino 2006), and we define secondary seedlings (SD2) as seedlings 5 years old until they reach a height of definable diameter at breast height (dbh; at 1.37 m). Based on age–height relationships for P. flexilis and P. aristata (J. Coop and A. Schoettle, unpublished data) this corresponds to ;20 years old.
+
+#### We define saplings (SA) as trees of 21 years (i.e., .1.37 m) until reproductive age, which we set at 40 years, since high-elevation white pines have first reproductive output between ages 30–50 (McCaughey and Schmidt 1990).
+
+#### We accordingly define young adults (YA) as reproductive trees ages 41–90 years and mature adults (MA) as greater than 90 years old with full reproductive capacity (Table 1).
+
+#### Delineation of YA and MA was estimated from field observations of reproductive capacity, and age/size measurements from P. flexilis (Burns et al. 2011; J. Coop and A. Schoettle, unpublished data). Based on this stage structure, the mean dbh for saplings, young adults, and mature adults was estimated to be 2.05, 12.5, and 37.0 cm respectively (Table 2).
+
+
+
+
+## References
+
+### Primary Seedlings
+
+#### Maher & Germino (2006)
+
+**Email for exact estimates.**
+
+Based on plots, rough estimates are as follows (mean +/- 1SE):
+
+- Emergent survivorship:
+  15% +/- 10%
+  
+    + Emergents are 1st year cotyledon seedlings
+  
+```{r}
+mg.emerg.mean <- 0.15
+mg.emerg.var  <- (0.1 * sqrt(8))^2
+
+mg.emerg.beta <- estBetaParams(mg.emerg.mean, mg.emerg.var) #Use mu & var to calculate beta distribution parameters (alpha & beta)
+
+mg.emerg.beta
+
+x <- seq(0.005,0.995,by = 0.005)
+vals <- dbeta(x , mg.emerg.beta[[1]], mg.emerg.beta[[2]])
+
+plot(x,vals, type = "l", 
+     xlab = "Probability of Survivorship",
+     ylab = "Density",
+     main = "Density plot of emergent survivorship \nMaher & Germino 2006")
+```
+
+
+- Seedling survivorship:
+  90% +/- 10%
+  
+    + Seedlings defined as seedlings with cotyledons that are not first year emergents.
+  
+  
+```{r}
+mg.seedling.mean <- 0.90
+mg.seedling.var  <- (0.1 * sqrt(6))^2
+
+mg.seedling.beta <- estBetaParams(mg.seedling.mean, mg.seedling.var) #Use mu & var to calculate beta distribution parameters (alpha & beta)
+
+mg.seedling.beta
+
+x <- seq(0.005,0.995,by = 0.005)
+vals <- dbeta(x , mg.seedling.beta[[1]], mg.seedling.beta[[2]])
+
+plot(x,vals, type = "l", 
+     xlab = "Probability of Survivorship",
+     ylab = "Density",
+     main = "Density plot of seedling survivorship \nMaher & Germino 2006")
+```
+
+  
+- Juvenile survivorship:
+  95% +/- 5%
+  
+    + Juveniles defined as seedlings without cotyledons <30cm in height
+  
+```{r}
+mg.juv.mean <- 0.95
+mg.juv.var  <- (0.05 * sqrt(9))^2
+
+mg.juv.beta <- estBetaParams(mg.juv.mean, mg.juv.var) #Use mu & var to calculate beta distribution parameters (alpha & beta)
+
+mg.juv.beta
+
+x <- seq(0.005,0.995,by = 0.005)
+vals <- dbeta(x , mg.juv.beta[[1]], mg.juv.beta[[2]])
+
+plot(x,vals, type = "l", 
+     xlab = "Probability of Survivorship",
+     ylab = "Density",
+     main = "Density plot of juv survivorship \nMaher & Germino 2006")
+```
+##How to define age on these????
+
+* Field et al. use SD1 = 1 - 4 yrs, SD2 = 6 - age when 1.37m height is reached. This is inconsistent with the estimates that M & G 2006 got. Emergents = 1st year (0 yrs), Seedlings = 1-5 yrs?????, Juveniles = 6 - ??? yrs.
+
+    + Will need to use coring information to assess age at 30cm and age at 1.37 m. 
+    
+    

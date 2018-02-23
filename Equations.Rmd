@@ -1,0 +1,138 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+<!-- $$\vec{x_n}(t+1, \vec{p}) = \textbf{S}(\vec{p})\vec{x_n}$$ -->
+
+$$n_{t+1} = \lambda n_t$$
+$$\vec{n}_{t+1} = \textbf{S}\vec{n}_t$$
+
+$$ \begin{pmatrix}
+n_{1, t+1}\\
+n_{2, t+1}\\
+n_{3, t+1}\\
+\end{pmatrix}=\begin{pmatrix}
+s_1 &  f_2*s_2  & f_3*s_3\\
+t_1 & s_1 & 0\\
+0   & t_2 & s_3
+\end{pmatrix} \begin{pmatrix}
+n_{1, t}\\
+n_{2, t}\\
+n_{3, t}\\
+\end{pmatrix}$$
+
+ $$s_i = (1 - \frac{1}{R_i})$$
+
+ $$t_i = \frac{1}{R_i} * s_i$$
+
+$$ cones = 12.5cos(1.5  t) + 14 + \epsilon, \epsilon \sim \mathcal{N}(0, 3.5) $$
+
+
+
+$$\begin{pmatrix}
+n_{SEED1,t+1}\\ 
+n_{SEED2,t+1}\\ 
+n_{SD, t+1}\\ 
+n_{SD1, t+1}\\ 
+n_{SAP, t+1}\\ 
+n_{MA, t+1}\\
+\end{pmatrix} = \begin{pmatrix}
+0               & 0            & 0         & 0          & 0          & f(t)_{MA}s_{MA} \\
+t_{SEED1-SEED2} & 0            & 0         & 0          & 0          & 0\\
+t_{SEED1-CS}    & t_{SEED2-CS} & 0         & 0          & 0          & 0 \\
+0               & 0            & t_{CS-SD} & s_{SD}     & 0          & 0 \\
+0               & 0            & 0         & t_{SD-SAP} & s_{SAP}    & 0 \\
+0               & 0            & 0         & 0          & t_{SAP-MA} & s_{MA} 
+ \end{pmatrix} \begin{pmatrix}
+n_{SEED1, t}\\ 
+n_{SEED2, t}\\ 
+n_{CS, t} \\ 
+n_{SD, t} \\ 
+n_{SAP, t} \\ 
+n_{MA, t}
+\end{pmatrix}$$
+
+
+$$ \begin{pmatrix}
+0               & 0            & 0         & 0          & 0          & f(t)_{MA}s_{MA} & 0               & 0           & 0         & 0          & 0          & d_{2-1}\\
+t_{SEED1-SEED2} & 0            & 0         & 0          & 0          & 0               & 0               & 0           & 0         & 0          & 0          & 0      \\
+t_{SEED1-CS}    & t_{SEED2-CS} & 0         & 0          & 0          & 0               & 0               & 0           & 0         & 0          & 0          & 0      \\
+0               & 0            & t_{CS-SD} & s_{SD}     & 0          & 0               & 0               & 0           & 0         & 0          & 0          & 0      \\
+0               & 0            & 0         & t_{SD-SAP} & s_{SAP}    & 0               & 0               & 0           & 0         & 0          & 0          & 0      \\
+0               & 0            & 0         & 0          & t_{SAP-MA} & s_{MA}          & 0               & 0           & 0         & 0          & 0          & 0      \\
+\hline\\
+0               & 0           & 0         & 0          & 0          & d_{1-2}         & 0               & 0            & 0         & 0          & 0          & f(t)_{MA}s_{MA}\\
+0               & 0           & 0         & 0          & 0          & 0               & t_{SEED1-SEED2} & 0            & 0         & 0          & 0          & 0              \\
+0               & 0           & 0         & 0          & 0          & 0               & t_{SEED1-CS}    & t_{SEED2-CS} & 0         & 0          & 0          & 0              \\
+0               & 0           & 0         & 0          & 0          & 0               & 0               & 0            & t_{CS-SD} & s_{SD}     & 0          & 0              \\
+0               & 0           & 0         & 0          & 0          & 0               & 0               & 0            & 0         & t_{SD-SAP} & s_{SAP}    & 0              \\
+0               & 0           & 0         & 0          & 0          & 0               & 0               & 0            & 0         & 0          & t_{SAP-MA} & s_{MA}         \\
+ \end{pmatrix}
+ $$
+
+
+
+
+
+
+
+
+
+
+<!-- $$\textbf{S} = \begin{pmatrix} -->
+<!-- 0               & 0            & 0         & 0          & 0          & s_{MA}f_{MA} \\ -->
+<!-- t_{SEED1-SEED2} & 0            & 0         & 0          & 0          & 0\\ -->
+<!-- t_{SEED1-CS}    & t_{SEED2-CS} & 0         & 0          & 0          & 0 \\ -->
+<!-- 0               & 0            & t_{CS-SD} & s_{SD}     & 0          & 0 \\ -->
+<!-- 0               & 0            & 0         & t_{SD-SAP} & s_{SAP}    & 0 \\ -->
+<!-- 0               & 0            & 0         & 0          & t_{SAP-MA} & s_{MA}  -->
+<!--  \end{pmatrix}$$ -->
+
+
+<!-- $$\vec{n} =  \begin{pmatrix} -->
+<!-- n_{SEED1} \\ -->
+<!-- n_{SEED2} \\ -->
+<!-- n_{CS}\\ -->
+<!-- n_{SD}\\ -->
+<!-- n_{SAP}\\ -->
+<!-- n_{MA} -->
+<!-- \end{pmatrix}$$ -->
+
+
+ $$\vec{n}_t =
+\begin{pmatrix}
+   \vec{n}^{Pop1} \\
+   \\
+   \hline
+   \vec{n}^{Pop2}
+   \end{pmatrix} = \begin{pmatrix}
+    n_{SEED1,t}\\
+    n_{SEED2,t}\\
+    n_{SD,t}\\
+    n_{SD1,t}\\
+    n_{SAP,t}\\
+    n_{MA,t}\\
+    \\
+  \hline
+    n_{SEED1,t}\\
+    n_{SEED2,t}\\
+    n_{SD,t}\\
+    n_{SD1,t}\\
+    n_{SAP,t}\\
+    n_{MA,t}
+\end{pmatrix}$$
+
+
+
+
+
+
+
+
+
+<!-- $$\lambda_{stoch} = 1.243$$ -->
+

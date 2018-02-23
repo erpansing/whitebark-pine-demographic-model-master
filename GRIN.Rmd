@@ -1,0 +1,250 @@
+---
+title: "GRIN Model"
+output: html_notebook
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+
+```{r}
+library(plyr)
+library(dplyr)
+library(popbio)
+
+source("/Users/elizabethpansing/Documents/Test/Field-et-al.-Model/WBP Demographic Model/GRIN parameter estimates.R")
+
+```
+
+
+```{r}
+
+n <- c(0, 0, 1000, 0, 0, 0)
+names(n) <- c("SEED1", "SEED2", "CS", "SD", "SAP", "MA")
+
+
+#define variables
+
+
+survival_SEED1    <- function(size){  # mortality rate of seeds
+  rbeta(n = size, 
+        shape1 = SEED1_survive_alpha, 
+        shape2 = SEED1_survive_beta)
+} # draws randomly from a beta distribution where seeds either die because of seed pilferage (assuming that all pilfered seeds are lost to reproduction), germinate, or persist in a soil seed bank. 
+
+
+
+survival_CS     <- function(size){
+        rbeta(n = size, 
+              shape1 = CS_survive_alpha,
+              shape2 = CS_survive_beta)
+}
+
+
+survival_SD     <- function(size){  # mortality rate of seedlings
+  rbeta(n = size,
+        shape1 = SD_survive_alpha,
+        shape2 = SD_survive_beta)
+}
+
+
+survival_SAP     <- function(){  # mortality rate of saplings
+  return(0.8)
+}
+
+survival_RMA     <- function(){  # mortality rate of reproductively mature adults
+ 0.99  #changed from 1 proposed in GRIN proposal bc immortality seemed a bit too idealistic??
+}
+
+
+survival_vector <- function(size){   #survival vector
+  c(survival_SD(size = size),
+    survival_SAP(),
+    survival_RMA())
+}
+
+survival_vector(size = 1)
+
+# Germination 
+
+germ_SEED1 <- function(size){
+  rbeta(n = size, 
+        shape1 = SEED1_germ_alpha,
+        shape2 = SEED1_germ_beta)
+}
+
+germ_SEED2 <- function(size){
+  rbeta(n = size, 
+        shape1 = SEED2_germ_alpha,
+        shape2 = SEED2_germ_beta)
+}
+
+
+# Residence time
+
+residence_SD   <- function(x){   # # years as seedling (SD)
+  return(10) 
+}
+
+residence_SAP  <- function(x){   # # years as sapling (SAP)
+  return(30) 
+}   
+
+residence_RMA  <- function(x){   # # years as reproductively mature
+  return(Inf)
+}
+                     
+
+
+residence_vector <- function(x){
+  c(residence_SD(),
+    residence_SAP(),
+    residence_RMA())
+}
+
+residence_vector()
+
+
+# Fecundity
+
+SEEDS <- function(size){
+  ((rgamma(n = size, shape = cone_alpha, scale = cone_theta) * 45) /3) * 0.45
+  }  # 45 seeds/cone with an average of 3 seeds per cache. 45% of the seeds are not retreived by CN
+
+```
+
+
+```{r}
+si <- function(size){
+  (1 - (1/residence_vector())) *
+  survival_vector(size = size)
+}
+  
+ti <- function(size) {
+  (1/residence_vector()) * 
+  survival_vector(size = size)
+}
+
+
+S <- function(){
+  matrix(c(               0,              0,             0,        0,         0, SEEDS(1) *si(1)[3],
+           survival_SEED1(1),             0,             0,        0,         0,        0,
+               germ_SEED1(1), germ_SEED2(1),             0,        0,         0,        0,
+                          0,              0, survival_CS(1), si(1)[1],        0,        0,
+                          0,              0,             0,  ti(1)[1], si(1)[2],        0,
+                          0,              0,             0,        0,  ti(1)[2], si(1)[3]),
+            byrow = T, nrow = 6, 
+         dimnames = list(c("SEED1", "SEED2", "CS", "SD", "SAP", "MA"),
+                         c("SEED1", "SEED2", "CS", "SD", "SAP", "MA"))) 
+}
+
+S() 
+```
+
+
+```{r}
+
+n <- c(62, 580 + 38, 79, 65, 91,  353) #Arbitrary starting pop size vectors
+n1 <- c(500, 0, 0, 0, 0,  0)
+
+## Create list of 10,000 matrixes drawn from distribution of vital rates
+reps <- 10000
+
+stochastic_matrixes <- array(0, dim = c(6,6,reps))
+
+for(i in 1:reps){
+  stochastic_matrixes[, , i] <- S()
+}
+
+
+
+A <- list(NULL)
+
+for(i in 1:reps){
+  mat <- stochastic_matrixes[,,i]
+  A[[i]] <- mat
+}
+
+rm(stochastic_matrixes)
+
+
+project <- function(projection_time, A, n0, reps = 500){    # stochastic projection function that tracks stage based pop sizes over time for each simulation
+  
+  results <- stochastic_matrixes <- array(0, dim = c(projection_time, length(n0) +1, reps))
+  
+  
+  
+  for(j in 1:reps){
+    
+    n <- n0
+    
+    
+    pops <- matrix(0, nrow = projection_time , ncol = length(n0)) 
+    
+    interval <- rgamma(4, shape = fire_alpha, rate = fire_beta) %>%
+      cumsum(.) %>%
+      round(., 0)
+    
+
+    for(i in 1:projection_time){
+      t <-  i #time counter
+      fire <- ifelse(t %in% interval, T, F)
+      
+       if(fire == T){
+         n <- c(1/5*n[1], 0, 0, 0, 0, 0)
+       } else if(fire == F) {
+         n <- n
+       }
+      
+      mat <- sample(A, size = projection_time, replace = T)
+      pops[i,] <- t(mat[[i]] %*% as.matrix(n, nrow = length(n), ncol = 1))
+      n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
+  
+    }
+    
+    pops <- cbind(pops, rep(1:projection_time))
+    
+    
+    results[, ,j] <- pops
+    
+  }
+  
+   results <- adply(results, 3)
+   colnames(results) <- c("Iteration", "SEED1", "SEED2", "CS", "SD", "SAP", "MA", "t")
+  
+  return(results)
+}
+
+projection20 <- project(projection_time = 500, A = A, n0 = n1, reps = 10000) 
+
+projection <- gather(projection20, Stage, Count, -Iteration, -t) %>%
+  filter(., !Stage == "SEED1") %>%
+  filter(., !Stage == "SEED2") %>%
+  group_by(., Iteration, t) %>%
+  summarise_at(., vars(Count), funs(sum))
+
+
+
+ggplot(data = projection, aes(x = t, y = Count, group = Iteration)) +
+  geom_line() +
+  theme(legend.position="none")
+
+hist(projection$Count[projection$t == 20], breaks = 100)
+  
+```
+
+
+
+
+```{r}
+stoch.sens(A, tlimit = 20)
+
+sgr <- stoch.growth.rate(A)
+exp(sgr$approx)
+
+test <- stoch.projection(A, n, tmax = 50, nreps = 5000, verbose = T)
+hist(apply(test, 1, sum), breaks = 100)
+```
+
