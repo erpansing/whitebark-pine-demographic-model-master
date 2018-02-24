@@ -231,68 +231,6 @@ residence_vector <-
 
 residence_vector
 
-
-##-----------------------------------------------------------##
-##                         FERTILITY                         ##
-##-----------------------------------------------------------##
-
-No_seeds_per_cone <- 45
-
-No_cones <- function(t, size = 1){    #Seed production in wbp is periodic
-  result <- NULL                   # with masting years every ~ 4 years
-  # so define cone production as a function
-  for(i in 1:size){                # of time described by cos with normally distributed error
-    value <- (12.5*cos(1.5 * t) + 14 + rnorm(1, sd = 3.5))
-    if( value >= 0){               # Max values and expected values from
-      result[i] <- value           # IGBST cone monitoring since 1980
-    } else if(value < 0){          # 
-      result[i] <- value - value   # # caches assumes 45 seeds/cone
-    }                              # and 3 seeds/cache. All available seeds cachek
-  }                                # Assumes 45% of caches created are left for regeneration.
-  return(result) 
-} 
-
-
-No_seeds_per_tree <- function(t, size = 1){
-  No_cones(t,1) * No_seeds_per_cone  
-}
-
-
-##-----------------------------------------------------------##
-##                       Germination                         ##
-##-----------------------------------------------------------##
-##-----------------------------------------------------------##
-##         Define variables assumed fixed & known            ##
-##-----------------------------------------------------------##
-Pfind  <- 0.8 # Proportion of seeds found by nutcrackers
-Pcons  <- 0.3 # Proportion of seeds consumed by nutcracers (prior to caching?)
-nBirds <- 3   # No. Clark's nutcrackers in the theoretical population
-SpC    <- 3.7 # No. seeds per cache
-
-##-----------------------------------------------------------##
-##         Define variables dependent on time vars           ##
-##-----------------------------------------------------------##
-
-SpB    <- n[1]/nBirds
-
-
-
-yhat <- function(x){  # function that estimates intermediate population size y
-  y <- S() %*% x
-  return(y)
-}
-
-y <- yhat(n)
-
-## Define reduction factors. These variables reduce 
-## 1) 
-
-rALS   <- 1/(1 + exp(2*(LAI(n)-3)))
-rCache <- 0.73/(1+ exp((31000-SpB)/3000))
-r2 <- ((1-Pfind)*(1-Pcons)/SpC) * rCache * rALS
-
-
-
 ##-----------------------------------------------------------##
 ##                  GET MATRIX ELEMENTS                      ##
 ##-----------------------------------------------------------##
@@ -321,6 +259,76 @@ S <- function(t){  # Germination rates ([3,1] & [3,2]) and fecundity ([1,6]) are
 }
 t <- 1
 S(t) 
+
+##-----------------------------------------------------------##
+##                         FERTILITY                         ##
+##-----------------------------------------------------------##
+
+No_seeds_per_cone <- 45
+
+No_cones <- function(t, size = 1){    #Seed production in wbp is periodic
+  result <- NULL                   # with masting years every ~ 4 years
+  # so define cone production as a function
+  for(i in 1:size){                # of time described by cos with normally distributed error
+    value <- (12.5*cos(1.5 * t) + 14 + rnorm(1, sd = 3.5))
+    if( value >= 0){               # Max values and expected values from
+      result[i] <- value           # IGBST cone monitoring since 1980
+    } else if(value < 0){          # 
+      result[i] <- value - value   # # caches assumes 45 seeds/cone
+    }                              # and 3 seeds/cache. All available seeds cachek
+  }                                # Assumes 45% of caches created are left for regeneration.
+  return(result) 
+} 
+
+e1 <- matrix(c(1,0,0,0,0,0))
+
+No_seeds <- function(t, size = 1, x){
+  No_cones(t,1) * No_seeds_per_cone  * x[6] * e1
+}
+
+
+
+##-----------------------------------------------------------##
+##                       Germination                         ##
+##-----------------------------------------------------------##
+##-----------------------------------------------------------##
+##         Define variables assumed fixed & known            ##
+##-----------------------------------------------------------##
+Pfind  <- 0.8 # Proportion of seeds found by nutcrackers
+Pcons  <- 0.3 # Proportion of seeds consumed by nutcracers (prior to caching?)
+nBirds <- 3   # No. Clark's nutcrackers in the theoretical population
+SpC    <- 3.7 # No. seeds per cache
+
+##-----------------------------------------------------------##
+##         Define variables dependent on time vars           ##
+##-----------------------------------------------------------##
+
+SpB    <- function(x){  # Number of seeds available to each bird
+  x[1]/nBirds
+}
+
+
+## Define reduction factors. These variables reduce 
+## 1) rALS decreases germination as light availability decreases
+## 2) rCache increases caching propensity as seed availability increases
+
+
+rALS   <- function(x){   
+  1/(1 + exp(2*(LAI(x)-3))) 
+}
+
+rCache <- function(x){
+  0.73/(1+ exp((31000-SpB(x))/3000))  
+}
+
+
+e3 <- matrix(c(0,0,1,0,0,0))
+
+## Define germination probability
+r2 <- function(x){
+  as.vector(((1-Pfind)*(1-Pcons)/SpC) * rCache(x) * rALS(x)) * e3
+}
+
 
 
 ##-----------------------------------------------------------##
@@ -401,9 +409,8 @@ project <- function(projection_time, n0, reps = 100){       # stochastic project
         tSinceFire <- tSinceFire + 1
         
         mat <- S(t = t)
-        y  <- mat%*%(n + gamma)  # Defines the intermediate population size 
-        
-        pops[i,] <- t(mat %*% as.matrix(n, nrow = length(n), ncol = 1))
+        pops[i]  <- mat%*%n + r2(n) + No_seeds(n)  # Defines the intermediate population size 
+
         n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
       }
       
