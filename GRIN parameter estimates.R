@@ -1,6 +1,10 @@
 rm(list = ls())
 load("survival.Rda")
 
+library(fitdistrplus)
+library(dplyr)
+
+
 ##-----------------------------------------------------------##
 ##                                                           ##
 ##                 Define Functions                          ##
@@ -38,8 +42,7 @@ get_betas <- function(data, reps, size){
   
   
   result <- list(samp.dist  = output_vector, mean.samp.dist = mean,
-                 var.samp.dist = var, lower.samp.dist = lower,
-                 upper.samp.dist = upper, alpha = alpha, beta = beta)
+                 var.samp.dist = var, quantiles = c(lower, upper), alpha = alpha, beta = beta)
   return(result)
 }
 
@@ -56,6 +59,10 @@ get_gammas <- function(mu, var){
 }
 
 
+get_negativeBinomial <- function(mu, var){
+  lambda <- mu
+  
+}
 
 
 reps <- 10000
@@ -210,8 +217,8 @@ rm(SEED2, SEED2_germ, SEED_2_germ_params, beta.dist)
 ##-----------------------------------------------------------##
 
 CS <- survival %>%
-  filter(., germ.2013.y.n == 1) %>%
-  select(., tag, germ.2013.y.n, no.living.2013, living.2014.y.n, survive.13.14)
+   filter(., germ.2013.y.n == 1) # %>%
+  # select(., tag, germ.2013.y.n, no.living.2013, living.2014.y.n, survive.13.14)
 
 # Include those seedlings that germinated and died before being located.
 CS$survive.13.14[CS$no.living.2013 == 0] <- 0
@@ -260,13 +267,15 @@ rm(CS, CS_survive, CS_survive_params, beta.dist)
 
 
 
-source("/Users/elizabethpansing/Box Sync/Yellowstone/88-Fires-Analysis/WBP Survival Estimates RMark Nest.R")
+source("/Users/elizabethpansing/Box Sync/PhD/Code/WBP Demographic Model Master/WBP Model Active/DM WBP Survival Estimates RMark Nest.R")
 
 
 SD_beta <- estBetaParams(mu = SD_survival_mean, var = SD_survival_var)
 
 SD_survive_alpha <- SD_beta$alpha
 SD_survive_beta  <- SD_beta$beta
+
+quantile(rbeta(5000, shape1 = SD_survive_alpha, shape2 = SD_survive_beta))
 
 rm(SD_beta)
 
@@ -304,12 +313,42 @@ cones_1980_2016 <- c(25.69, 13.23, 16.98, 17.4, 6.43, 27.2, 1.37, 2.54, 2.40, 48
 mu.cones <- mean(cones_1980_2016)
 var.cones <- var(cones_1980_2016)
 
-cone_params <- get_gammas(mu = mu.cones, var = var.cones)
+# cone_params <- get_gammas(mu = mu.cones, var = var.cones)
+# 
+# cone_alpha <- cone_params$alpha
+# cone_beta  <- cone_params$beta
+# cone_theta <- cone_params$theta
 
-cone_alpha <- cone_params$alpha
-cone_theta <- cone_params$theta
+cone_frame <- data.frame(Year = 1980:2016, ConesPerTree = cones_1980_2016)
 
-rm(cones_1980_2016, mu.cones, var.cones, cone_params)
+
+rm(cones_1980_2016, mu.cones, var.cones)
+
+##-----------------------------------------------------------##
+##                                                           ##
+##                    Seeds per cone                         ##
+##                                                           ##
+##-----------------------------------------------------------##
+
+mean_seedspercone <- 41.2
+sd_seedspercone <- 23.4
+var_seedspercone <- sd_seedspercone^2
+
+
+mu_seeds_per_cone <- 41.2
+size_seeds_per_cone <- (mean_seedspercone + mean_seedspercone^2)/var_seedspercone
+
+##-----------------------------------------------------------##
+##                                                           ##
+##                    Seeds per cache                        ##
+##                                                           ##
+##-----------------------------------------------------------##
+
+cache_sizes <- c(rep(1, 59), rep(2, 39), rep(3, 39), rep(4, 16), 
+                 rep(5, 12), rep(6,7), rep(7,7), rep(8, 6), 
+                 9, rep(10,2), rep(11,3), 12, 13, 14, 15)
+
+lambda_cache_size <- fitdistr(cache_sizes, "Poisson")$estimate
 
 ##-----------------------------------------------------------##
 ##                                                           ##
@@ -328,4 +367,26 @@ fire_gamma <- get_gammas(mu = mean_interval, var = var_interval)
 fire_alpha <- fire_gamma$alpha
 fire_beta <- fire_gamma$beta
 
-rm(LarsonFireIntervals, mean_interval, var_interval, fire_gamma, get_gammas)
+rm(LarsonFireIntervals, mean_interval, var_interval, fire_gamma)
+
+
+##-----------------------------------------------------------##
+##              Whitebark pine density from                  ##
+##                   pre 1988 YNP fires                      ##
+##                 Tomback et al. in prep                    ##
+##-----------------------------------------------------------##
+
+
+HM_dens <- c(0.001, 0.003, 0, 0, 0.009, 0.003, 0.001)
+Mean_HM_dens <- mean(HM_dens)
+var_HM_dens <- var(HM_dens)
+
+MW_dens <- c(0.016, 0, 0.001, 0.001, 0.010)
+Mean_MW_dens <- mean(MW_dens)
+var_MW_dens <- var(MW_dens)
+
+dens_shape <- get_gammas(mu = Mean_HM_dens, var = var_HM_dens)$alpha
+dens_rate <- get_gammas(mu = Mean_HM_dens, var = var_HM_dens)$beta
+
+del <- paste0("^MW$|^HM$|del")
+rm(list = ls(pattern = del))

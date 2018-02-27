@@ -20,7 +20,7 @@ library(tidyr)
 ## 3) 2017 YNP Data.Rda
 ## 4) survival.Rda
 
-source("/Users/elizabethpansing/Documents/Test/Field-et-al.-Model/WBP Demographic Model/GRIN parameter estimates.R") 
+source("/Users/elizabethpansing/Box Sync/PhD/Code/WBP Demographic Model Master/WBP Model Active/GRIN parameter estimates.R") 
 
 ## Write function for determining leaf area index (LAI) as a function
 ## of stage specific dbh and the number of trees on the landscape
@@ -294,7 +294,7 @@ No_seeds <- function(t, size = 1, x){
 ##-----------------------------------------------------------##
 ##         Define variables assumed fixed & known            ##
 ##-----------------------------------------------------------##
-Pfind  <- 0.8 # Proportion of seeds found by nutcrackers
+Pfind  <- 0.55 # Proportion of seeds found by nutcrackers
 Pcons  <- 0.3 # Proportion of seeds consumed by nutcracers (prior to caching?)
 nBirds <- 3   # No. Clark's nutcrackers in the theoretical population
 SpC    <- 3.7 # No. seeds per cache
@@ -325,11 +325,13 @@ rCache <- function(x){
 e3 <- matrix(c(0,0,1,0,0,0))
 
 ## Define germination probability
-r2 <- function(x){
-  as.vector(((1-Pfind)*(1-Pcons)/SpC) * rCache(x) * rALS(x)) * e3
+# r2 <- function(x){
+#   as.vector(((1-Pfind)*(1-Pcons)/SpC) * rCache(x) * rALS(x)) * e3
+# }
+
+germ <- function(t, size = 1, x){
+  as.vector(No_seeds(t = t, size = 1, x = n)[1])*((1-Pcons)*rCache(x)/3.7) * (1-Pfind) * as.vector(rALS(x)) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e3
 }
-
-
 
 ##-----------------------------------------------------------##
 ##              Function that projects pop                   ##
@@ -373,6 +375,13 @@ project <- function(projection_time, n0, reps = 100){       # stochastic project
     pops <- matrix(0, nrow = projection_time , ncol = length(n)) # Creates empty matrix to hold population sizes
     
     for(i in 1:projection_time){           # get population
+      
+      if (i == 1){
+        n <- n0
+      }else if(i != 1){
+        n <- n
+      }
+      
       t <-  i                              # time counter
       tSinceFire <- ifelse(i == 1, 1, tSinceFire)
       fire <- ifelse(t %in% interval, TRUE, FALSE)  # Determine whether this iteration experiences a stand replacing fire
@@ -395,21 +404,22 @@ project <- function(projection_time, n0, reps = 100){       # stochastic project
         
       } else if(fire == F & tSinceFire == 2 & t != 2){
         tSinceFire <- tSinceFire + 1
-        pops[i,] <- c(No_caches(size = 1, t = t), 0, 0, 0, 0, 0)
+        pops[i,] <- t(No_seeds(size = 1, t = t, x = n))
         n <- pops[i,]
         
-      } else if(fire == F & tSinceFire == 2 & t == 2){
+      # } else if(fire == F & tSinceFire == 2 & t == 2){
+      #   tSinceFire <- tSinceFire + 1
+      #   
+      #   mat <- S(t = t)
+      #   pops[i,] <- t(mat %*% as.matrix(n, nrow = length(n), ncol = 1))
+      #   n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
+        
+      } else if((fire == F & tSinceFire != 2) |
+                (fire == F & tSinceFire == 2 & t == 2)){
         tSinceFire <- tSinceFire + 1
         
         mat <- S(t = t)
-        pops[i,] <- t(mat %*% as.matrix(n, nrow = length(n), ncol = 1))
-        n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
-        
-      } else if(fire == F & tSinceFire != 2){
-        tSinceFire <- tSinceFire + 1
-        
-        mat <- S(t = t)
-        pops[i]  <- mat%*%n + r2(n) + No_seeds(n)  # Defines the intermediate population size 
+         pops[i,]  <- t(mat%*%n + germ(t = t, size = 1, x = n) + No_seeds(t = t, size = 1, x = n))  # Defines the intermediate population size 
 
         n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
       }
@@ -438,7 +448,7 @@ project <- function(projection_time, n0, reps = 100){       # stochastic project
 ##                 Population projection                     ##
 ##-----------------------------------------------------------##
 
-projection <- project(projection_time = 500, n0 = n, reps = 50) 
+projection <- project(projection_time = 100, n0 = n, reps = 50) 
 
 projection <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
   filter(., !Stage == "SEED1") %>%          # Pop sizes in dataframe format
