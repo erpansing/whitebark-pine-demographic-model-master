@@ -329,8 +329,13 @@ e3 <- matrix(c(0,0,1,0,0,0))
 #   as.vector(((1-Pfind)*(1-Pcons)/SpC) * rCache(x) * rALS(x)) * e3
 # }
 
-germ <- function(t, size = 1, x){
+germ1st <- function(t, size = 1, x){
   as.vector(No_seeds(t = t, size = 1, x = n)[1])*((1-Pcons)*rCache(x)/3.7) * (1-Pfind) * as.vector(rALS(x)) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e3
+}
+
+
+germ2nd <- function(t, size = 1, x){
+  as.vector(x[2]/3.7 * rALS(x)) * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e3 
 }
 
 ##-----------------------------------------------------------##
@@ -340,10 +345,7 @@ germ <- function(t, size = 1, x){
 
 library(plyr)
 
-n <- c(62, 580 + 38, 79, 65, 91,  353) # Arbitrary starting pop size vectors
-
-
-project <- function(projection_time, n0, reps = 100){       # stochastic projection function 
+project <- function(projection_time, n0, reps = 100, fire = T){       # stochastic projection function 
   # that tracks stage based pop sizes 
   # over time for reps number of iterations
   
@@ -353,13 +355,16 @@ project <- function(projection_time, n0, reps = 100){       # stochastic project
   for(j in 1:reps){       # Iterate through i years (projection_time) of population growth j times (iterations)
     # Incorporate FIRE
     if(j == 1){           
-      intervals <- NULL   # Create null vectors that will hold fire intervals for each iteration
-      iteration <- NULL   # Create null vectors that will show the iteration during which each fire occured
+      intervals   <- NULL   # Create null vectors that will hold fire intervals for each iteration
+      iteration   <- NULL   # Create null vectors that will show the iteration during which each fire occured
+      LAI_tracker <- matrix(c(rep(1:reps, each = projection_time),rep(0, projection_time*reps*2)), 
+                              nrow = projection_time * reps, ncol = 3, byrow = F)
     } else if(j != 1){
-      intervals <- intervals
-      iteration <- iteration
+      intervals   <- intervals
+      iteration   <- iteration
+      LAI_tracker <- LAI_tracker
     }
-    
+    if(fire == TRUE){
     interval <- rgamma(4, shape = fire_alpha, rate = fire_beta)  %>%     
       round(., 0) %>%     # Select fire years from a gamma distribution (assumes mean fire return interval = 233 yrs)
       cumsum(.)           # representing the waiting times btwn fires
@@ -368,14 +373,18 @@ project <- function(projection_time, n0, reps = 100){       # stochastic project
     
     ## Creates dataframe result that tracks the fire years for each iteration.
     intervals <- append(intervals, interval, after = length(intervals))
+    
+    } else if(fire == FALSE){
+      intervals = NULL
+    }
     iteration <- append(iteration, rep(j, length(interval)), 
                         after = length(iteration))
     
     
-    pops <- matrix(0, nrow = projection_time , ncol = length(n)) # Creates empty matrix to hold population sizes
+    pops <- matrix(0, nrow = projection_time, ncol = length(n)) # Creates empty matrix to hold population sizes and LAI
     
     for(i in 1:projection_time){           # get population
-      
+        
       if (i == 1){
         n <- n0
       }else if(i != 1){
@@ -386,6 +395,8 @@ project <- function(projection_time, n0, reps = 100){       # stochastic project
       tSinceFire <- ifelse(i == 1, 1, tSinceFire)
       fire <- ifelse(t %in% interval, TRUE, FALSE)  # Determine whether this iteration experiences a stand replacing fire
       
+      # LAI_tracker_each_iteraton <- matrix(0, nrow = projection_time, ncol = 2)
+      LAI_tracker[j*projection_time - (projection_time)+i,2:3] <- c(i, LAI(n))
       
       # Now, multiple possibilities
       # 1) There's a fire. This kills the population. Assumes stand replacing burn that impacts entire population
@@ -399,31 +410,35 @@ project <- function(projection_time, n0, reps = 100){       # stochastic project
       if(fire == T){                  
         
         tSinceFire <- 1 
+        
         pops[i,] <- c(0, 0, 0, 0, 0, 0)    # Assuming stand replacing burn with no survival and no regeneration. 
         n <- pops[i,]                      # Most fires go out with first snow. e.g., Romme 1982
         
       } else if(fire == F & tSinceFire == 2 & t != 2){
+        
         tSinceFire <- tSinceFire + 1
+        
         pops[i,] <- t(No_seeds(size = 1, t = t, x = n))
         n <- pops[i,]
         
-      # } else if(fire == F & tSinceFire == 2 & t == 2){
-      #   tSinceFire <- tSinceFire + 1
-      #   
-      #   mat <- S(t = t)
-      #   pops[i,] <- t(mat %*% as.matrix(n, nrow = length(n), ncol = 1))
-      #   n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
         
       } else if((fire == F & tSinceFire != 2) |
                 (fire == F & tSinceFire == 2 & t == 2)){
         tSinceFire <- tSinceFire + 1
         
         mat <- S(t = t)
-         pops[i,]  <- t(mat%*%n + germ(t = t, size = 1, x = n) + No_seeds(t = t, size = 1, x = n))  # Defines the intermediate population size 
+         pops[i,]  <- t(mat%*%n + germ1st(t = t, size = 1, x = n) + germ2nd(t = t, size = 1, x = n) + No_seeds(t = t, size = 1, x = n))  # Defines the intermediate population size 
 
         n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
-      }
       
+        
+        } else if(fire == F & tSinceFire == 2 & t == 2){
+          tSinceFire <- tSinceFire + 1
+          
+          pops[i,] <- c(500000, 0, 0, 0, 0, 0)
+          n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
+        }
+          
     }
     
     pops <- cbind(pops, rep(1:projection_time))  # Appends matrix to keep track of time during iteration
@@ -438,7 +453,7 @@ project <- function(projection_time, n0, reps = 100){       # stochastic project
   
   fire_intervals <- cbind(iteration, intervals)  # Dataframe keeping track of fire return intervals
   
-  results <- list(pop_sizes = pop_sizes, fire_intervals = fire_intervals)
+  results <- list(pop_sizes = pop_sizes, fire_intervals = fire_intervals, LAI_track = LAI_tracker)
   
   return(results)
 }
@@ -448,28 +463,34 @@ project <- function(projection_time, n0, reps = 100){       # stochastic project
 ##                 Population projection                     ##
 ##-----------------------------------------------------------##
 
-projection <- project(projection_time = 100, n0 = n, reps = 50) 
+n <- c(62, 580 + 38, 79, 65, 91,  353) # Arbitrary starting pop size vectors
 
-projection <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
+projection <- project(projection_time = 500, n0 = n, reps = 1000, fire = FALSE) 
+
+pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
   filter(., !Stage == "SEED1") %>%          # Pop sizes in dataframe format
   filter(., !Stage == "SEED2") %>%          # and excluding seed numbers (most don't think of seeds)
   group_by(., Iteration, t) %>%             # as a part of the population, so presenting numbers as 
   summarise_at(., vars(Count), funs(sum)) %>% # number of living trees (i.e., post germination) is more
-  ungroup(.)                                # intuitive
+  ungroup(.)   %>%                              # intuitive
+  mutate(., Density = Count/(10000*10000))
 
 
-ggplot(data = projection, aes(x = t, y = Count, col = Iteration)) +  # plot pop sizes for all iterations.
+fire_intervals <- as.data.frame(projection$fire_intervals)
+
+ggplot(data = pop_sizes, aes(x = t, y = Density, col = Iteration)) +  # plot pop sizes for all iterations.
   geom_line(lwd = 1) +
   theme(axis.title.x=element_text( size=18, vjust=0)) +
   theme(axis.text.x=element_text(size=18))  +
   theme(axis.title.y=element_text( size=18, vjust=2.75, face = "bold")) +
   theme(axis.text.y=element_text(size = 18)) +
-  labs(x = "Years", y = "Population Size")
+  labs(x = "Years", y = expression(paste("Density (no./",m^2,")"))) #+ 
+  # theme(legend.position="none")
 
 
 ## Plot of projection iteration 1
 
-projection1 <- projection %>% 
+projection1 <- pop_sizes %>% 
   filter(., Iteration == 1)
 
 ggplot(data = projection1, aes(x = t, y = Count)) +  # plot pop sizes for all iterations.
@@ -479,6 +500,19 @@ ggplot(data = projection1, aes(x = t, y = Count)) +  # plot pop sizes for all it
   theme(axis.text.x=element_text(size=18))  +
   theme(axis.title.y=element_text( size=18, vjust=2.75, face = "bold")) +
   theme(axis.text.y=element_text(size = 18))
+
+
+mean_density <- pop_sizes %>% 
+  group_by(., Iteration) %>% 
+  filter(., Count == max(Count)) %>% 
+  ungroup(.) %>% 
+  summarise(., mean(Density))
+
+(max_density <- pop_sizes %>% 
+  group_by(., Iteration) %>% 
+  filter(., Count == max(Count)) %>% 
+  ungroup(.) %>% 
+  summarise(., max(Density)))
 
 ## Plot of projection iteration 1 for t = 30 years
 
@@ -497,6 +531,43 @@ ggplot(data = projection1t30, aes(x = t, y = Count)) +  # plot pop sizes for all
 
 hist(projection$Count[projection$t == 500], breaks = 20,
      main = "", xlab = "Population size at time = 500 years")
+
+
+
+##-----------------------------------------------------------##
+##                   LAI Diagnostics                         ##
+##-----------------------------------------------------------##
+
+LAI_data <- data.frame(DBH = c(0, 0, 0, 2.05, 12.5, 37), 
+                       LA = c(0, 0, alpha1(), alpha2()*2.05^alpha3(), alpha2()*12.5^alpha3(), alpha2()*37^alpha3()))
+
+ggplot(data = LAI_data, aes(x = DBH, y = LA))+
+  geom_line()+
+  geom_point()
+
+
+
+LAI_values <- as.data.frame(projection[[3]]) %>% 
+  dplyr::select(., Iteration = V1, Time = V2, LAI = V3) %>% 
+  group_by(., Time) %>% 
+  summarise_at(., vars(LAI), funs(mean, min, max)) %>% 
+  dplyr::select(.,Time, LAI = mean, min, max)
+
+
+ggplot(data = LAI_values, aes(x = Time, y = LAI))+
+  geom_line() +
+  geom_ribbon(data = LAI_values, aes(ymin = min, ymax = max), alpha = 0.5)
+
+
+# ggplot(predictions, aes(x = time, y = prob)) +
+#   # geom_point() +
+#   geom_ribbon(aes(ymin = lcl, ymax = ucl), alpha = 0.5, fill = "#ef8a62") +
+#   geom_line(size = 0.5) +
+#   xlab("Year") +
+#   ylab("Annual survival rate") +
+#   scale_y_continuous(limits = c(0.75,1)) +
+#   scale_x_continuous(limits = c(1990, 2017))
+
 
 ##-----------------------------------------------------------##
 ##              Get stochastic lambda and                    ##
