@@ -249,7 +249,7 @@ ti <- function(size = 1) {                 # Gives probability of surviving and 
 S <- function(t){  # Germination rates ([3,1] & [3,2]) and fecundity ([1,6]) are included
   # later as non-linear functions and added to the population vectors later
   matrix(c(               0,       0,        0,        0,        0,         0,
-                          t1_SEED1(1),       0,        0,        0,        0,         0,
+                t1_SEED1(1),       0,        0,        0,        0,         0,
                           0,       0,        0,        0,        0,         0,
                           0,       0,  t_CS(1), si(1)[1],        0,         0,
                           0,       0,        0, ti(1)[1], si(1)[2],         0,
@@ -286,8 +286,6 @@ e1 <- matrix(c(1,0,0,0,0,0))
 No_seeds <- function(t, size = 1, x){
   No_cones(t,1) * No_seeds_per_cone  * x[6] * e1
 }
-
-
 
 ##-----------------------------------------------------------##
 ##                       Germination                         ##
