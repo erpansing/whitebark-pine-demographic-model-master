@@ -393,7 +393,7 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
   for(j in 1:reps){       # Iterate through i years (projection_time) of population growth j times (iterations)
     # Incorporate FIRE
     if(j == 1){           
-      fire_tracker   <- matrix(c(rep(1:projection_time, each = reps),rep(0, projection_time*reps*2)), 
+      fire_tracker   <- matrix(c(rep(1:reps, each = projection_time),rep(0, projection_time*reps*2)), 
                                nrow = projection_time * reps, ncol = 3, byrow = F)  
       LAI_tracker <- matrix(c(rep(1:reps, each = projection_time),rep(0, projection_time*reps*2)), 
                             nrow = projection_time * reps, ncol = 3, byrow = F)
@@ -513,7 +513,7 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
 
 n <- c(62, 580 + 38, 79, 65, 500,  800) # Arbitrary starting pop size vectors
 
-projection <- project(projection_time = 100, n0 = n, reps = 10, fire = T) 
+projection <- project(projection_time = 100, n0 = n, reps = 10000, fire = T) 
 
 pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
   filter(., !Stage == "SEED1") %>%          # Pop sizes in dataframe format
@@ -538,14 +538,15 @@ ggplot(data = pop_sizes, aes(x = t, y = Density, col = Iteration)) +  # plot pop
   labs(x = "Years", y = expression(paste("Density (no./",m^2,")"))) + 
   theme(legend.position="none")
 
-
-ggplot(data = pop_sizes, aes( x = Count, col = Iteration))+
+pop_sizes %>% 
+  filter(., Iteration %in% sample(seq(1,100, 1), 10, replace = F)) %>% 
+  ggplot(data = ., aes( x = Count, col = Iteration))+
   geom_density()+
   facet_grid(~Iteration)+
   theme(legend.position = "none")
 
 pop_sizes %>% 
-  filter(., Iteration != 7) %>% 
+  filter(., Iteration %in% sample(seq(1,100, 1), 10, replace = F)) %>% 
   ggplot(data = ., aes(x = t, y = Density, col = Iteration))+
   geom_point() +
   facet_wrap(~Iteration, ncol = 2)+
