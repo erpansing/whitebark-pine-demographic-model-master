@@ -11,7 +11,6 @@
 library(dplyr)
 library(popbio)
 library(tidyr)
-library(ggplot2)
 
 ## Import relevant parameter estimates calculated in other scripts.
 
@@ -318,60 +317,30 @@ rALS   <- function(x){
   1/(1 + exp(2*(LAI(x)-3))) 
 }
 
-rCache <- function(x){
-  0.73/(1+ exp((31000-SpB(x))/3000))  
-}
+# rCache <- function(x){
+#   0.73/(1+ exp((31000-SpB(x))/3000))  
+# }
 
 
 e3 <- matrix(c(0,0,1,0,0,0))
 
 ## Define germination probability
-# r2 <- function(x){
-#   as.vector(((1-Pfind)*(1-Pcons)/SpC) * rCache(x) * rALS(x)) * e3
-# }
+
+## First try, do not include the reduction factor that reduces caching as seed availability decreases.
+## So we assume the proportion of seeds cached is constant and does not vary as a function of cone production
 
 germ1st <- function(t, size = 1, x){
-  as.vector(No_seeds(t = t, size = 1, x = n)[1])*((1-Pcons)*rCache(x)/3.7) * (1-Pfind) * as.vector(rALS(x)) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e3
+  as.vector(No_seeds(t = t, size = 1, x = n)[1])*((1-Pcons)/3.7) * (1-Pfind) * as.vector(rALS(x)) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e3
 }
+
+germ1st_rcache <- function(t, size = 1, x){
+  as.vector(No_seeds(t = t, size = 1, x = n)[1])*((1-Pcons)*rCache()/3.7) * (1-Pfind) * as.vector(rALS(x)) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e3
+}
+
 
 
 germ2nd <- function(t, size = 1, x){
   as.vector(x[2]/3.7 * rALS(x)) * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e3 
-}
-
-##-----------------------------------------------------------##
-##                                                           ## 
-##              Fire return interval functions               ## 
-##                                                           ## 
-##-----------------------------------------------------------##
-## Westerling et al. (2011) predict a decrease from historic fire 
-## return intervals in the GYE from >120 years to <30 by the end 
-## of the 21st century. The following functions describe that decrease
-## in fire return interval. 
-
-## We define current fire return intervals as ~230 years in 
-## (Larson et al. 2009) in wbp forests. We set middle of the 
-## century values following figure 3 in Westerling et al. 2011
-## and end of century values as 30 years. 
-
-## The following function uses those timeframes to estimate the shape
-## of the declined in fire rates (i.e., lambda)
-
-fire_return_decrease <- data.frame(Year = c(0, 40, 100), Interval = c(230, 75, 30)) 
-fit <- lm(log(Interval)~Year, data = fire_return_decrease)
-summary(fit)
-predicted <- exp(fit$coefficients[1] + fit$coefficients[2]* fire_return_decrease$Year)
-plot(Interval~Year, data = fire_return_decrease)
-points(fire_return_decrease$Year, predicted, pch = 19)
-
-## NEED TO: Try to put a distribution on the average rate
-interval <- function(t){
-  exp(fit$coefficients[1] + fit$coefficients[2]* t)
-} 
-
-## Function that determines whether fire occurs in current year
-fire_current_year <- function(t, n = 1){
-  rbinom(size = 1, n = 1, prob = 1/interval(t))
 }
 
 ##-----------------------------------------------------------##
@@ -381,56 +350,55 @@ fire_current_year <- function(t, n = 1){
 
 library(plyr)
 
-n <- c(62, 580 + 38, 79, 65, 500,  800) # Arbitrary starting pop size vectors
-
 project <- function(projection_time, n0, reps = 100, fire = T){       # stochastic projection function 
   # that tracks stage based pop sizes 
   # over time for reps number of iterations
   
   results <- stochastic_matrixes <-                          #Create null matrix that will hold stage
-    array(0, dim = c(projection_time, length(n0) + 1, reps)) # based population sizes and year tracker
+    array(0, dim = c(projection_time, length(n0) + 1, reps)) # based population sizes
   
   for(j in 1:reps){       # Iterate through i years (projection_time) of population growth j times (iterations)
     # Incorporate FIRE
     if(j == 1){           
-      fire_tracker   <- matrix(c(rep(1:projection_time, each = reps),rep(0, projection_time*reps*2)), 
-                               nrow = projection_time * reps, ncol = 3, byrow = F)  
+      intervals   <- NULL   # Create null vectors that will hold fire intervals for each iteration
+      iteration   <- NULL   # Create null vectors that will show the iteration during which each fire occured
       LAI_tracker <- matrix(c(rep(1:reps, each = projection_time),rep(0, projection_time*reps*2)), 
                             nrow = projection_time * reps, ncol = 3, byrow = F)
     } else if(j != 1){
-      fire_tracker <- fire_tracker
+      intervals   <- intervals
+      iteration   <- iteration
       LAI_tracker <- LAI_tracker
     }
-    # if(fire == TRUE){
-      # interval <- rgamma(4, shape = fire_alpha, rate = fire_beta)  %>%     
-      #   round(., 0) %>%     # Select fire years from a gamma distribution (assumes mean fire return interval = 233 yrs)
-      #   cumsum(.)           # representing the waiting times btwn fires
-      # # cumsum gives the time = t years during which fires should occur in projection
-      # interval <- interval[-which(interval > projection_time)]  #trim to only include those within the projection time
-      # 
-      # ## Creates dataframe result that tracks the fire years for each iteration.
-      # intervals <- append(intervals, interval, after = length(intervals))
+    if(fire == TRUE){
+      interval <- rnbinom(n = 4, size = 1, mu = 230) %>%  # Select fire years from a negative binomial distribution (assumes mean fire return interval = 230 yrs)
+        cumsum(.)           # representing the waiting times btwn fires
+      # cumsum gives the time = t years during which fires should occur in projection
+      interval <- interval[-which(interval > projection_time)]  #trim to only include those within the projection time
       
+      ## Creates dataframe result that tracks the fire years for each iteration.
+      intervals <- append(intervals, interval, after = length(intervals))
       
-      ## GOES HERE
-      
-    # } else if(fire == FALSE){
-    #   intervals = NULL
-    # }
+    } else if(fire == FALSE){
+      intervals <- NULL
+      interval <- NULL
+    }
+    iteration <- append(iteration, rep(j, length(interval)), 
+                        after = length(iteration))
+    
+    
     pops <- matrix(0, nrow = projection_time, ncol = length(n)) # Creates empty matrix to hold population sizes and LAI
     
     for(i in 1:projection_time){           # get population
       
       if (i == 1){
         n <- n0
-        # intervals   <- NULL   # Create null vectors that will hold boolean indicator of fire for each timestep
       }else if(i != 1){
         n <- n
       }
       
       t <-  i                              # time counter
-      tSinceFire <- ifelse(i == 1, 1,tSinceFire + 1)
-     # intervals <- append(intervals, fire, after = length(intervals))
+      tSinceFire <- ifelse(i == 1, 1, tSinceFire)
+      fire_current <- ifelse(t %in% interval, TRUE, FALSE)  # Determine whether this iteration experiences a stand replacing fire
       
       # LAI_tracker_each_iteraton <- matrix(0, nrow = projection_time, ncol = 2)
       LAI_tracker[j*projection_time - (projection_time)+i,2:3] <- c(i, LAI(n))
@@ -443,52 +411,41 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
       #    population
       # 3) There's no fire and it's >1 year after fire. In this case, there are no modifications and the 
       #    system proceeds as normal.
-      if(fire == T){
-        fire_current <- fire_current_year(t)  # Determine whether this iteration experiences a stand replacing fire
-        fire_tracker[j*projection_time - (projection_time)+i,2:3] <- c(i, fire_current)
-        if(fire_current == T){                  
-          
-          tSinceFire <- 0 
-          
-          pops[i,] <- c(0, 0, 0, 0, 0, 0)    # Assuming stand replacing burn with no survival and no regeneration. 
-          n <- pops[i,]                      # Most fires go out with first snow. e.g., Romme 1982
-          
-      } else if((fire_current == F & tSinceFire != 1) |   ## NEED TO RETHINK THIS
-                  (fire_current == F & tSinceFire == 1 & t == 1)){
-          # tSinceFire <- tSinceFire + 1
-          
-          mat <- S(t = t)
-          pops[i,]  <- c(t(mat%*%n + germ1st(t = t, size = 1, x = n) + germ2nd(t = t, size = 1, x = n) + No_seeds(t = t, size = 1, x = n)))  # Defines the intermediate population size 
-          
-          n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
-          # } else if(fire == F & tSinceFire == 2){
-          #   tSinceFire <- tSinceFire + 1
-          #   
-          #   pops[i,] <- c(500000, 0, 0, 0, 0, 0)
-          #   n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
+      
+      if(fire_current == T){                  
+        
+        tSinceFire <- 0 
+        
+        pops[i,] <- c(0, 0, 0, 0, 0, 0)    # Assuming stand replacing burn with no survival and no regeneration. 
+        n <- pops[i,]                      # Most fires go out with first snow. e.g., Romme 1982
+        
       } else if(fire_current == F & tSinceFire == 1 & t != 1){
         
-        # tSinceFire <- tSinceFire + 1
+        tSinceFire <- tSinceFire + 1
         
-        pops[i,] <- t(No_seeds(size = 1, t = t, x = c(0,0,0,0,0,5)))
+        pops[i,] <- t(No_seeds(size = 1, t = t, x = n))
         n <- pops[i,]
         
         
-      }
-        
-      }
-      else if(fire == F){
-        fire_tracker[j*projection_time - (projection_time)+i,2:3] <- c(i, 0)
-        
-        # tSinceFire <- tSinceFire + 1
+      } else if((fire_current == F & tSinceFire != 1) |
+                (fire_current == F & tSinceFire == 1 & t == 1)){
+        tSinceFire <- tSinceFire + 1
         
         mat <- S(t = t)
-        pops[i,]  <- c(t(mat%*%n + germ1st(t = t, size = 1, x = n) + germ2nd(t = t, size = 1, x = n) + No_seeds(t = t, size = 1, x = n)))  # Defines the intermediate population size 
+        pops[i,]  <- t(mat%*%n + germ1st(t = t, size = 1, x = n) + germ2nd(t = t, size = 1, x = n) + No_seeds(t = t, size = 1, x = n))  # Defines the intermediate population size 
         
-        n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1) 
+        n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
+        
+        
+        # } else if(fire == F & tSinceFire == 1 & t == 2){
+        #   tSinceFire <- tSinceFire + 1
+        #   
+        #   pops[i,] <- c(500000, 0, 0, 0, 0, 0)
+        #   n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
       }
+      
     }
-    pops
+    
     pops <- cbind(pops, rep(1:projection_time))  # Appends matrix to keep track of time during iteration
     
     
@@ -499,9 +456,9 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
   pop_sizes <- plyr::adply(results, 3)           # Changes array to dataframe so easier to manipulate later
   colnames(pop_sizes) <- c("Iteration", "SEED1", "SEED2", "CS", "SD", "SAP", "MA", "t")
   
-  # fire_intervals <- cbind(iteration, intervals)  # Dataframe keeping track of fire return intervals
+  fire_intervals <- cbind(iteration, intervals)  # Dataframe keeping track of fire return intervals
   
-  results <- list(pop_sizes = pop_sizes, fire_tracker = fire_tracker, LAI_track = LAI_tracker) 
+  results <- list(pop_sizes = pop_sizes, fire_intervals = fire_intervals, LAI_track = LAI_tracker)
   
   return(results)
 }
@@ -511,9 +468,11 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
 ##                 Population projection                     ##
 ##-----------------------------------------------------------##
 
-n <- c(62, 580 + 38, 79, 65, 500,  800) # Arbitrary starting pop size vectors
+n <- c(62, 580 + 38, 79, 65, 91,  353) # Arbitrary starting pop size vectors
 
-projection <- project(projection_time = 100, n0 = n, reps = 10, fire = T) 
+projection <- project(projection_time = 500, n0 = n, reps = 100, fire = FALSE) 
+
+pops <- gather(projection$pop_sizes, Stage, Count, - Iteration, - t)
 
 pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
   filter(., !Stage == "SEED1") %>%          # Pop sizes in dataframe format
@@ -524,10 +483,7 @@ pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%
   mutate(., Density = Count/(10000*10000))
 
 
-fire_intervals <- as.data.frame(projection$fire_tracker) %>% 
-  dplyr::rename(., "Iteration" = "V1",
-                   "Year"      = "V2",
-                   "Fire"      = "V3")
+fire_intervals <- as.data.frame(projection$fire_intervals)
 
 ggplot(data = pop_sizes, aes(x = t, y = Density, col = Iteration)) +  # plot pop sizes for all iterations.
   geom_line(lwd = 1) +
@@ -535,21 +491,8 @@ ggplot(data = pop_sizes, aes(x = t, y = Density, col = Iteration)) +  # plot pop
   theme(axis.text.x=element_text(size=18))  +
   theme(axis.title.y=element_text( size=18, vjust=2.75, face = "bold")) +
   theme(axis.text.y=element_text(size = 18)) +
-  labs(x = "Years", y = expression(paste("Density (no./",m^2,")"))) + 
-  theme(legend.position="none")
-
-
-ggplot(data = pop_sizes, aes( x = Count, col = Iteration))+
-  geom_density()+
-  facet_grid(~Iteration)+
-  theme(legend.position = "none")
-
-pop_sizes %>% 
-  filter(., Iteration != 7) %>% 
-  ggplot(data = ., aes(x = t, y = Density, col = Iteration))+
-  geom_point() +
-  facet_wrap(~Iteration, ncol = 2)+
-  theme(legend.position = "none")
+  labs(x = "Years", y = expression(paste("Density (no./",m^2,")"))) #+ 
+# theme(legend.position="none")
 
 
 ## Plot of projection iteration 1
@@ -566,18 +509,17 @@ ggplot(data = projection1, aes(x = t, y = Count)) +  # plot pop sizes for all it
   theme(axis.text.y=element_text(size = 18))
 
 
-
-
-(median_density <- pop_sizes %>% 
-  summarise_at(.,vars(Density), funs(median)))
-
-(median_end_density <- pop_sizes %>% 
-    filter(., t == 100))
+(mean_density <- pop_sizes %>% 
+    group_by(., Iteration) %>% 
+    filter(., Count == max(Count)) %>% 
+    ungroup(.) %>% 
+    summarise(., mean(Density)))
 
 (max_density <- pop_sizes %>% 
-    summarise_at(.,vars(Density), funs(max)))
-
-
+    group_by(., Iteration) %>% 
+    filter(., Count == max(Count)) %>% 
+    ungroup(.) %>% 
+    summarise(., max(Density)))
 
 ## Plot of projection iteration 1 for t = 30 years
 
@@ -610,30 +552,18 @@ ggplot(data = LAI_data, aes(x = DBH, y = LA))+
   geom_line()+
   geom_point()
 
-lower <- function(x){
-  quantile(x, prob = 0.025)
-}
 
-upper <- function(x){
-  quantile(x, prob = 0.975)
-}
 
 LAI_values <- as.data.frame(projection[[3]]) %>% 
   dplyr::select(., Iteration = V1, Time = V2, LAI = V3) %>% 
   group_by(., Time) %>% 
-  summarise_at(., vars(LAI), funs(mean, lower, upper)) %>% 
-  dplyr::select(.,Time, LAI = mean,lower, upper)
+  summarise_at(., vars(LAI), funs(mean, min, max)) %>% 
+  dplyr::select(.,Time, LAI = mean, min, max)
 
-test <- as.data.frame(projection[[3]]) %>% 
-  dplyr::select(., Iteration = V1, Time = V2, LAI = V3) %>% 
-  filter(., Time %in% seq(0,100, 5))
 
-test %>% 
-  # filter(., Iteration != 7) %>% 
-  ggplot(data = ., aes(x = Time, y = LAI, col = as.factor(Iteration)))+
-  geom_point() +
-  facet_wrap(~Iteration, nrow = 2)+
-  theme(legend.position = "none")
+ggplot(data = LAI_values, aes(x = Time, y = LAI))+
+  geom_line() +
+  geom_ribbon(data = LAI_values, aes(ymin = min, ymax = max), alpha = 0.5)
 
 
 # ggplot(predictions, aes(x = time, y = prob)) +

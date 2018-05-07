@@ -365,8 +365,7 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
       LAI_tracker <- LAI_tracker
     }
     if(fire == TRUE){
-    interval <- rgamma(4, shape = fire_alpha, rate = fire_beta)  %>%     
-      round(., 0) %>%     # Select fire years from a gamma distribution (assumes mean fire return interval = 233 yrs)
+    interval <- rnbinom(n = 4, size = 1, mu = 230) %>%  # Select fire years from a negative binomial distribution (assumes mean fire return interval = 230 yrs)
       cumsum(.)           # representing the waiting times btwn fires
     # cumsum gives the time = t years during which fires should occur in projection
     interval <- interval[-which(interval > projection_time)]  #trim to only include those within the projection time
@@ -375,7 +374,8 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
     intervals <- append(intervals, interval, after = length(intervals))
     
     } else if(fire == FALSE){
-      intervals = NULL
+      intervals <- NULL
+      interval <- NULL
     }
     iteration <- append(iteration, rep(j, length(interval)), 
                         after = length(iteration))
@@ -393,7 +393,7 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
       
       t <-  i                              # time counter
       tSinceFire <- ifelse(i == 1, 1, tSinceFire)
-      fire <- ifelse(t %in% interval, TRUE, FALSE)  # Determine whether this iteration experiences a stand replacing fire
+      fire_current <- ifelse(t %in% interval, TRUE, FALSE)  # Determine whether this iteration experiences a stand replacing fire
       
       # LAI_tracker_each_iteraton <- matrix(0, nrow = projection_time, ncol = 2)
       LAI_tracker[j*projection_time - (projection_time)+i,2:3] <- c(i, LAI(n))
@@ -407,14 +407,14 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
       # 3) There's no fire and it's >1 year after fire. In this case, there are no modifications and the 
       #    system proceeds as normal.
       
-      if(fire == T){                  
+      if(fire_current == T){                  
         
-        tSinceFire <- 1 
+        tSinceFire <- 0 
         
         pops[i,] <- c(0, 0, 0, 0, 0, 0)    # Assuming stand replacing burn with no survival and no regeneration. 
         n <- pops[i,]                      # Most fires go out with first snow. e.g., Romme 1982
         
-      } else if(fire == F & tSinceFire == 2 & t != 2){
+      } else if(fire_current == F & tSinceFire == 1 & t != 1){
         
         tSinceFire <- tSinceFire + 1
         
@@ -422,8 +422,8 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
         n <- pops[i,]
         
         
-      } else if((fire == F & tSinceFire != 2) |
-                (fire == F & tSinceFire == 2 & t == 2)){
+      } else if((fire_current == F & tSinceFire != 1) |
+                (fire_current == F & tSinceFire == 1 & t == 1)){
         tSinceFire <- tSinceFire + 1
         
         mat <- S(t = t)
@@ -432,11 +432,11 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
         n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
       
         
-        } else if(fire == F & tSinceFire == 2 & t == 2){
-          tSinceFire <- tSinceFire + 1
-          
-          pops[i,] <- c(500000, 0, 0, 0, 0, 0)
-          n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
+        # } else if(fire == F & tSinceFire == 1 & t == 2){
+        #   tSinceFire <- tSinceFire + 1
+        #   
+        #   pops[i,] <- c(500000, 0, 0, 0, 0, 0)
+        #   n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
         }
           
     }
@@ -465,7 +465,9 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
 
 n <- c(62, 580 + 38, 79, 65, 91,  353) # Arbitrary starting pop size vectors
 
-projection <- project(projection_time = 500, n0 = n, reps = 1000, fire = FALSE) 
+projection <- project(projection_time = 500, n0 = n, reps = 10000, fire = TRUE) 
+
+pops <- gather(projection$pop_sizes, Stage, Count, - Iteration, - t)
 
 pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
   filter(., !Stage == "SEED1") %>%          # Pop sizes in dataframe format
@@ -473,19 +475,20 @@ pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%
   group_by(., Iteration, t) %>%             # as a part of the population, so presenting numbers as 
   summarise_at(., vars(Count), funs(sum)) %>% # number of living trees (i.e., post germination) is more
   ungroup(.)   %>%                              # intuitive
-  mutate(., Density = Count/(10000*10000))
+  mutate(., Density = Count/(10000))
 
 
 fire_intervals <- as.data.frame(projection$fire_intervals)
 
-ggplot(data = pop_sizes, aes(x = t, y = Density, col = Iteration)) +  # plot pop sizes for all iterations.
+ggplot(data = pop_sizes, aes(x = t, y = Count, col = Iteration)) +  # plot pop sizes for all iterations.
   geom_line(lwd = 1) +
   theme(axis.title.x=element_text( size=18, vjust=0)) +
   theme(axis.text.x=element_text(size=18))  +
   theme(axis.title.y=element_text( size=18, vjust=2.75, face = "bold")) +
   theme(axis.text.y=element_text(size = 18)) +
-  labs(x = "Years", y = expression(paste("Density (no./",m^2,")"))) #+ 
-  # theme(legend.position="none")
+  labs(x = "Years", y = "no") + 
+  theme(legend.position="none")+
+  geom_hline(yintercept = 715)
 
 
 ## Plot of projection iteration 1
@@ -502,11 +505,11 @@ ggplot(data = projection1, aes(x = t, y = Count)) +  # plot pop sizes for all it
   theme(axis.text.y=element_text(size = 18))
 
 
-mean_density <- pop_sizes %>% 
+(mean_density <- pop_sizes %>% 
   group_by(., Iteration) %>% 
   filter(., Count == max(Count)) %>% 
   ungroup(.) %>% 
-  summarise(., mean(Density))
+  summarise(., mean(Density)))
 
 (max_density <- pop_sizes %>% 
   group_by(., Iteration) %>% 
@@ -603,5 +606,23 @@ sgr_real <- exp(sgr$approx)
 
 
 
+## Determining quasi extinction values
 
+# when probability of observing a nutcracker dips below 10%
+# solving for x gives the cone density index (ln(cones/ha))^2 when prob dips belows 10%
+
+# ln(0.1/0.9) = 0.03883x - 1.5165
+
+(cdi <- (log(0.18/(1-0.18)) + 1.5165)/0.03883)
+
+(cdext <- exp(sqrt(cdi)))
+
+odds <- exp(0.03*0 - 1.5165)
+p <- odds/(1+odds)
+
+# suggests that cone density that dips below 
+
+
+quasiextinct <- stoch.quasi.ext(A, n0, Nx = 500, tmax = 100, maxruns = 10, nreps = 5000, 
+                prob = NULL, sumweight = NULL, verbose=TRUE)
 

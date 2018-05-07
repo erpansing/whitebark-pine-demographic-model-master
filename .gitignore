@@ -43,8 +43,8 @@
 *.txt
 # Sometimes we intentionally add .csv files, but it should never be done accidentally.
 tstamps/
-.inp
-.out
-.res
-.vcv
+*.inp
+*.out
+*.res
+*.vcv
 .Rproj.user
