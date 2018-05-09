@@ -14,3 +14,6 @@ ggplot(data = dispersal, aes(x = Distance_median)) +
   theme(axis.text = element_text(size = 15)) +
   theme(axis.title = element_text(size = 18, face = "bold"))+
   labs(x = "Median dispersal distance (km)", y = "Density")
+
+
+hist(dispersal$Distance_median, breaks = 10)

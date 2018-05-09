@@ -390,3 +390,45 @@ dens_rate <- get_gammas(mu = Mean_HM_dens, var = var_HM_dens)$beta
 
 del <- paste0("^MW$|^HM$|del")
 rm(list = ls(pattern = del))
+
+
+##-----------------------------------------------------------##
+##               Nutcracker dispersal distance               ##
+##                   Lorenz et al. 2011                      ##
+##-----------------------------------------------------------##
+
+dispersal <- read.csv("/Users/elizabethpansing/Documents/Test/Field-et-al.-Model/WBP Demographic Model/Lorenz Cache Distance Data.csv")
+
+## First use median and range to estimate mean and var
+## Then calculate 95% CI.
+## Each iteration, pull new mean dispersal distance
+## Convert new mean and variance to lognormal 
+## Get probability of >= 25 km to determine what proportion of caches dispersed between populations
+
+
+## Following functions taken from Hozo 2005 BMC Medical Research Methodology (https://doi.org/10.1186/1471-2288-5-13)
+mean_from_median <- function(min, max, median, n){
+  ((min + 2 * median + max)/4) + ((min - 2 * median + max)/(4 * n))
+}
+
+var_from_range <- function(min, max){
+  range <- max - min
+  return(range/6)
+}
+
+
+mean_dispersal <- matrix(0, nrow = nrow(dispersal), ncol = 2)
+for(i in 1:nrow(dispersal)){
+  mean_dispersal[i,1]  = mean_from_median(min    = dispersal$Distance_Min[i],    max = dispersal$Distance_max[i], 
+                                          median = dispersal$Distance_median[i], n   = dispersal$No.Caches[i])
+  mean_dispersal[i,2]   = var_from_range(min = dispersal$Distance_Min[i], max = dispersal$Distance_max[i])
+ 
+} 
+
+mean_dispersal <- as.data.frame(mean_dispersal) %>% 
+  dplyr::rename(., Mean = V1, Var = V2) %>% 
+  mutate(Alpha = get_gammas(Mean, Var)$alpha,
+         Beta  = get_gammas(Mean, Var)$beta)
+  
+
+rm(dispersal, mean_from_median, var_from_range, get_gammas)

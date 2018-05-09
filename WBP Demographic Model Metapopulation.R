@@ -286,9 +286,17 @@ Pfind  <- 0.55   # Proportion of seeds found by nutcrackers
 Pcons  <- 0.3    # Proportion of seeds consumed by nutcracers (prior to caching?)
 nBirds <- 3      # No. Clark's nutcrackers in the theoretical population
 SpC    <- 3      # No. seeds per cache
-dispersal21 <- 0.05
-dispersal12 <- 0.10
 
+##-----------------------------------------------------------##
+##               Define dispersal parameters                 ##
+##-----------------------------------------------------------##
+
+dispersal_25 <- function(mean_dispersal){   # Here we're assuming that the populations are separated by 25 km
+  # x <- unlist(mean_dispersal[sample(1:nrow(mean_dispersal), size = 1),])
+  x <- sample_n(mean_dispersal, size = 1)
+  out <- pgamma(q = 25, shape = x$Alpha, rate = x$Beta, lower.tail = FALSE)
+  return(out)
+}
 
 e1 <- matrix(c(1,0,0,0,0,0,0,0,0,0,0,0))
 e6 <- matrix(c(0,0,0,0,0,0,1,0,0,0,0,0))
@@ -296,35 +304,28 @@ e6 <- matrix(c(0,0,0,0,0,0,1,0,0,0,0,0))
 ## Do birds cache more in subpopulation 1 during years of fire in subpopulation 2? Or are they 
 ## lost to recruitment?
 
-No_caches_1 <- function(t, size = 1, x){
-  (No_cones(t, 1) * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal12) +  
-     No_cones(t, 1) * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * dispersal21)* e1
+No_caches_1_nofire <- function(cones_1, cones_2, dispersal12, dispersal21, t, size = 1, x){
+  (cones_1 * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal12) +  
+    cones_2 * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * dispersal21)* e1
 }
 
-No_caches_1_fire1 <- functionfunction(t, size = 1, x){
-  (No_cones(t, 1) * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal12) +  
-     No_cones(t, 1) * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * dispersal21)* e1
+No_caches_1_fire1 <- 0 * e1
+
+No_caches_1_fire2 <- function(cones_1, t, size = 1, x){
+     cones_1 * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * e1
 }
 
-No_caches_1_fire2 <- functionfunction(t, size = 1, x){
-  (No_cones(t, 1) * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal12) +  
-     No_cones(t, 1) * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * dispersal21)* e1
+No_caches_2_nofire <- function(cones_1, cones_2,dispersal12, dispersal21, t, size = 1, x){
+  (cones_1 * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal21) +
+     cones_2 * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * dispersal12)* e6
 }
 
-No_caches_2 <- function(t, size = 1, x){
-  (No_cones(t, 1) * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal21) +
-     No_cones(t, 1) * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * dispersal12)* e6
+No_caches_2_fire1 <- function(cones_2, t, size = 1, x){
+  cones_2 * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * e6
 }
 
-No_caches_2_fire1 <- function(t, size = 1, x){
-  (No_cones(t, 1) * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal21) +
-     No_cones(t, 1) * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * dispersal12)* e6
-}
+No_caches_2_fire2 <- 0 * e6
 
-No_caches_2_fire1 <- function(t, size = 1, x){
-  (No_cones(t, 1) * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal21) +
-     No_cones(t, 1) * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * dispersal12)* e6
-}
 
 ##-----------------------------------------------------------##
 ##                       Germination                         ##
@@ -346,6 +347,7 @@ SpB    <- function(x){  # Number of seeds available to each bird
 rALS   <- function(x){   
   1/(1 + exp(2*(LAI(x)-3))) 
 }
+
 
 # rCache1 <- function(x){
 #   0.73/(1+ exp((31000-SpB(x[1:6]))/3000))  
@@ -566,9 +568,17 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
       
       ## Update time counter for each time step
       t <-  i   # time counter
+      
      
       ## Update LAI tracker
       LAI_tracker[j*projection_time - (projection_time)+i,2:4] <- c(i, LAI(n))
+     
+      ## Update parameters drawn from distributions/samples that must remain constant during each year
+      cones_1 <- No_cones(t = t, size = 1)
+      cones_2 <- No_cones(t = t,size = 1 )
+      
+      dispersal12 <- dispersal_25(mean_dispersal = mean_dispersal)
+      dispersal21 <- dispersal_25(mean_dispersal = mean_dispersal)
 #--------------------------------------------------------------------------------------------------------------------------------------------      
       ##############################################################################################################################################            
       ##                                                                FIRE POSSIBLE                    
@@ -603,7 +613,7 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
                        # germ2ndpop1(t = t, size = 1, x = n) + 
                        germ2ndpop2(t = t, size = 1, x = n) +
                        # No_seeds1(t = t, size = 1, x = n) +
-                       No_caches_2(t = t, size = 1, x = n)))  # Defines the intermediate population size
+                       No_caches_2_fire1(cones_2 = cones_2, t = t, size = 1, x = n)))  # Defines the intermediate population size
           
           n         <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
           
@@ -623,7 +633,7 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
                             # germ1stpop2(t = t, size = 1, x = n) +
                             germ2ndpop1(t = t, size = 1, x = n) +
                             # germ2ndpop2(t = t, size = 1, x = n) +
-                            No_caches_1(t = t, size = 1, x = n))) #+
+                            No_caches_1_fire2(cones_1 = cones_1, t = t, size = 1, x = n))) #+
                             # No_seeds2(t = t, size = 1, x = n)))  # Defines the intermediate population size
           
           n         <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
@@ -653,8 +663,12 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
                              germ1stpop2(t = t, size = 1, x = n) + 
                              germ2ndpop1(t = t, size = 1, x = n) + 
                              germ2ndpop1(t = t, size = 1, x = n) + 
-                             No_caches_1(t = t, size = 1, x = n)+
-                             No_caches_2(t = t, size = 1, x = n)))  # Defines the intermediate population size 
+                             No_caches_1_nofire(cones_1 = cones_1, cones_2 = cones_2,
+                                                dispersal12 = dispersal12, dispersal21 = dispersal21, 
+                                                t = t, size = 1, x = n) +
+                             No_caches_2_nofire(cones_1 = cones_1, cones_2 = cones_2, 
+                                                dispersal12 = dispersal12, dispersal21 = dispersal21, 
+                                                t = t, size = 1, x = n)))  # Defines the intermediate population size 
           
           n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
          
@@ -674,8 +688,12 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
                                   germ1stpop2(t = t, size = 1, x = n) +
                                   germ2ndpop1(t = t, size = 1, x = n) + 
                                   germ2ndpop2(t = t, size = 1, x = n) +
-                                  No_seeds1(t = t, size = 1, x = n) +
-                                  No_seeds2(t = t, size = 1, x = n)))  # Defines the intermediate population size
+                                  No_caches_1_nofire(cones_1 = cones_1, cones_2 = cones_2, 
+                                                     dispersal12 = dispersal12, dispersal21 = dispersal21, 
+                                                     t = t, size = 1, x = n) +
+                                  No_caches_2_nofire(cones_1 = cones_1, cones_2 = cones_2, 
+                                                     dispersal12 = dispersal12, dispersal21 = dispersal21, 
+                                                     t = t, size = 1, x = n)))  # Defines the intermediate population size
         
         n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1) 
       }
@@ -708,9 +726,9 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
 ##                 Population projection                     ##
 ##-----------------------------------------------------------##
 
-projection <- project(projection_time = 100, n0 = n, reps = 5) 
+projection <- project(projection_time = 150, n0 = n, reps = 5000) 
 
-Test <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
+pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
   filter(., !Stage == "SEED1_1") %>%          # Pop sizes in dataframe format
   filter(., !Stage == "SEED1_2") %>% 
   filter(., !Stage == "SEED2_1") %>%          # and excluding seed numbers (most don't think of seeds)
@@ -719,10 +737,24 @@ Test <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%
   # mutate(., Population = ifelse(grepl("1$", Stage), 1, 2))
   group_by(., Population, Iteration, t) %>%             # as a part of the population, so presenting numbers as 
   summarise_at(., vars(Count), funs(sum)) %>% # number of living trees (i.e., post germination) is more
-  ungroup(.)                                # intuitive
+  ungroup(.) %>%                                # intuitive
+  mutate(., Density = Count/5e7)
 
 
-ggplot(data = Test, aes(x = t, y = Count, col = Iteration)) +  # plot pop sizes for all iterations.
+Fire_years <- as.data.frame(projection$fire_tracker) %>% 
+  dplyr::rename(., Iteration = V1, Year = V2, Pop1 = V3, Pop2 = V4) 
+
+test <- Fire_years %>% 
+  filter(., Pop1 == 1 & Pop2 == 1) %>% 
+  group_by(Iteration) %>% 
+  tally() %>% 
+  ungroup() 
+
+nrow(test)/5000
+
+pop_sizes %>% 
+  filter(., Iteration %in% sample(1:5000, 25, replace = F)) %>% 
+ggplot(data = ., aes(x = t, y = Density, col = Iteration)) +  # plot pop sizes for all iterations.
   geom_line(lwd = 1) +
   theme(legend.position="none") +
   theme(axis.title.x=element_text( size=18, vjust=0)) +
@@ -730,6 +762,21 @@ ggplot(data = Test, aes(x = t, y = Count, col = Iteration)) +  # plot pop sizes 
   theme(axis.title.y=element_text( size=18, vjust=2.75, face = "bold")) +
   theme(axis.text.y=element_text(size = 18)) +
   facet_wrap(~Population)
+
+
+pop_sizes %>% 
+  # filter(., Iteration %in% sample(seq(1,100, 1), 50, replace = F)) %>% 
+  ggplot(data = ., aes( x = Count, col = Iteration))+
+  geom_density()+
+  facet_wrap(~ Population + Iteration, nrow = 2)+
+  theme(legend.position = "none")
+
+pop_sizes %>% 
+  # filter(., Iteration %in% sample(seq(1,100, 1), 10, replace = F)) %>%
+  ggplot(data = ., aes(x = t, y = Density, col = Iteration))+
+  geom_line() +
+  facet_wrap(~Iteration + Population, nrow = 2)+
+  theme(legend.position = "none")
 
 
 ## Plot of projection iteration 1
