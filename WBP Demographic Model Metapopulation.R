@@ -293,9 +293,10 @@ SpC    <- 3      # No. seeds per cache
 
 dispersal_25 <- function(mean_dispersal){   # Here we're assuming that the populations are separated by 25 km
   # x <- unlist(mean_dispersal[sample(1:nrow(mean_dispersal), size = 1),])
-  x <- sample_n(mean_dispersal, size = 1)
-  out <- pgamma(q = 25, shape = x$Alpha, rate = x$Beta, lower.tail = FALSE)
-  return(out)
+  pgamma(shape = dispersal_alpha, rate = dispersal_beta, 25, lower.tail = FALSE)
+
+  # out <- pgamma(q = 25, shape = x$Alpha, rate = x$Beta, lower.tail = FALSE)
+  # return(out)
 }
 
 e1 <- matrix(c(1,0,0,0,0,0,0,0,0,0,0,0))
@@ -499,16 +500,20 @@ S_fire_both <- function(t){
 ## The following function uses those timeframes to estimate the shape
 ## of the declined in fire rates (i.e., lambda)
 
-fire_return_decrease <- data.frame(Year = c(0, 40, 100), Interval = c(230, 75, 30)) 
-fit <- lm(log(Interval)~Year, data = fire_return_decrease)
+fire_return_decrease <- data.frame(Year = c(0, 40, 100, 200), Interval = c(230, 75, 30, 30)) 
+# fit <- lm(log(Interval)~Year, data = fire_return_decrease)
+fit <- glm(Interval~Year, data = fire_return_decrease, family = inverse.gaussian)
 summary(fit)
-predicted <- exp(fit$coefficients[1] + fit$coefficients[2]* fire_return_decrease$Year)
-plot(Interval~Year, data = fire_return_decrease)
-points(fire_return_decrease$Year, predicted, pch = 19)
+predicted_fire_return_decrease <- data.frame(Year = c(fire_return_decrease$Year, 500))
+# predicted <- exp(fit$coefficients[1] + fit$coefficients[2]* fire_return_decrease$Year)
+predicted <- predict.glm(object = fit, newdata = predicted_fire_return_decrease, type = "response")
+plot(Interval~Year, data = fire_return_decrease, xlim = c(0,550))
+points(predicted_fire_return_decrease$Year, predicted, pch = 19)
 
 ## NEED TO: Try to put a distribution on the average rate
 interval <- function(t){
-  exp(fit$coefficients[1] + fit$coefficients[2]* t)
+  x <- data.frame(Year = t)
+  predict.glm(object = fit, newdata = x, type = "response")
 } 
 
 ## Function that determines whether fire occurs in current year
@@ -542,6 +547,9 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
   
   results <-                                                 #Create null matrix that will hold stage
     array(0, dim = c(projection_time, length(n0) + 1, reps)) # based population sizes and year tracker
+  
+  mats <-
+    array(0, dim = c(length(n0), length(n0), projection_time, reps))
   
   for(j in 1:reps){       # Iterate through i years (projection_time) of population growth j times (iterations)
     # Incorporate FIRE
@@ -726,7 +734,7 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
 ##                 Population projection                     ##
 ##-----------------------------------------------------------##
 
-projection <- project(projection_time = 150, n0 = n, reps = 5000) 
+projection <- project(projection_time = 100, n0 = n, reps = 100) 
 
 pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
   filter(., !Stage == "SEED1_1") %>%          # Pop sizes in dataframe format
@@ -753,7 +761,7 @@ test <- Fire_years %>%
 nrow(test)/5000
 
 pop_sizes %>% 
-  filter(., Iteration %in% sample(1:5000, 25, replace = F)) %>% 
+   filter(., Iteration %in% sample(1:100, 25, replace = F)) %>% 
 ggplot(data = ., aes(x = t, y = Density, col = Iteration)) +  # plot pop sizes for all iterations.
   geom_line(lwd = 1) +
   theme(legend.position="none") +
@@ -765,14 +773,14 @@ ggplot(data = ., aes(x = t, y = Density, col = Iteration)) +  # plot pop sizes f
 
 
 pop_sizes %>% 
-  # filter(., Iteration %in% sample(seq(1,100, 1), 50, replace = F)) %>% 
+  # filter(., Iteration %in% sample(seq(1,100, 1), 25, replace = F)) %>% 
   ggplot(data = ., aes( x = Count, col = Iteration))+
   geom_density()+
   facet_wrap(~ Population + Iteration, nrow = 2)+
   theme(legend.position = "none")
 
 pop_sizes %>% 
-  # filter(., Iteration %in% sample(seq(1,100, 1), 10, replace = F)) %>%
+  filter(., Iteration %in% sample(seq(1,100, 1), 25, replace = F)) %>%
   ggplot(data = ., aes(x = t, y = Density, col = Iteration))+
   geom_line() +
   facet_wrap(~Iteration + Population, nrow = 2)+

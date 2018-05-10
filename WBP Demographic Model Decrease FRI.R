@@ -511,7 +511,7 @@ project <- function(projection_time, n0, reps = 100, fire = T){       # stochast
 
 n <- c(62, 580 + 38, 79, 65, 500,  800) # Arbitrary starting pop size vectors
 
-projection <- project(projection_time = 100, n0 = n, reps = 10000, fire = T) 
+projection <- project(projection_time = 100, n0 = n, reps = 10, fire = T) 
 
 pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
   filter(., !Stage == "SEED1") %>%          # Pop sizes in dataframe format
@@ -534,19 +534,20 @@ ggplot(data = pop_sizes, aes(x = t, y = Density, col = Iteration)) +  # plot pop
   theme(axis.title.y=element_text( size=18, vjust=2.75, face = "bold")) +
   theme(axis.text.y=element_text(size = 18)) +
   labs(x = "Years", y = expression(paste("Density (no./",m^2,")"))) + 
-  theme(legend.position="none")
+  theme(legend.position="none")+
+  facet_wrap(~Population)
 
 pop_sizes %>% 
-  filter(., Iteration %in% sample(seq(1,100, 1), 10, replace = F)) %>% 
+  # filter(., Iteration %in% sample(seq(1,100, 1), 10, replace = F)) %>% 
   ggplot(data = ., aes( x = Count, col = Iteration))+
   geom_density()+
   facet_grid(~Iteration)+
   theme(legend.position = "none")
 
 pop_sizes %>% 
-  filter(., Iteration %in% sample(seq(1,100, 1), 10, replace = F)) %>% 
+  # filter(., Iteration %in% sample(seq(1,100, 1), 10, replace = F)) %>% 
   ggplot(data = ., aes(x = t, y = Density, col = Iteration))+
-  geom_point() +
+  geom_() +
   facet_wrap(~Iteration, ncol = 2)+
   theme(legend.position = "none")
 
