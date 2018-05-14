@@ -186,10 +186,11 @@ s_SAP     <- function(){         # Survival probability of saplings
 ##                            MA                             ##
 ##-----------------------------------------------------------##
 
-s_MA     <- function(){         # Survival rate of reproductively mature adults
-  0.75                          # Assume limited death from senescence because 
-}                               # of long lived nature of wbp (lifespan up to 1200 yrs)
-                                # For now, assuming constant.
+s_MA     <- function(size = 1){ # Survival rate of reproductively mature adults
+  rbeta(n = size,              # Assume limited death from senescence because 
+        shape1 = MA_s_alpha,   # of long lived nature of wbp (lifespan up to 1200 yrs)
+        shape2 = MA_s_beta)   # For now, assuming constant.
+}
 
 ##-----------------------------------------------------------##
 ##                          DEFINE                           ##

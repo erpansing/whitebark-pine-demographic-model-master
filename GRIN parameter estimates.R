@@ -291,7 +291,7 @@ rm(SD_beta)
 SAP_survival <- 0.8
 
 
-rm(survival, n, reps, estBetaParams, get_betas, lower, upper)
+rm(survival, n, reps, estBetaParams, lower, upper)
 
 
 ##-----------------------------------------------------------##
@@ -445,4 +445,39 @@ dispersal_beta  <- get_gammas(mean(d), var(d))$beta
 
 # rm(dispersal, mean_from_median, var_from_range, get_gammas)
 
-rm(d, dispersal)
+rm(d, dispersal, get_gammas)
+
+##-----------------------------------------------------------##
+##                 Mature tree survival rates                ##
+##                 NPS WBP Monitoring Program                ##
+##-----------------------------------------------------------##
+
+wbp_monitoring <- read.csv("/Users/elizabethpansing/Box Sync/References/WBP Monitoring/Data GreaterYellowstoneWhitebarkPineMonitoringDataSummary2004thru2016 .csv")
+col_names <- read.csv("/Users/elizabethpansing/Box Sync/References/WBP Monitoring/Colnames GreaterYellowstoneWhitebarkPineMonitoringDataSummary2004thru2016 .csv")
+
+
+cols <- as.character(col_names$Field.Name)
+
+colnames(wbp_monitoring) <- cols
+
+
+out <- wbp_monitoring %>% 
+  arrange(., PlotID, SurveyYear) %>% 
+  mutate(., PreviousLiving = lag(TotalLiveTreesThisSurvey)) %>% 
+  group_by(., PlotID, SurveyYear) %>% 
+  mutate(., PreviousLiving = ifelse(YearSiteEstablished == SurveyYear, NA, PreviousLiving)) %>% 
+  ungroup(.) %>% 
+  dplyr::select(., PlotID, SurveyYear, PreviousLiving, TotalLiveTreesThisSurvey, DeadTrees_fromLivePrecedingSurvey,
+                RecentlyDeadTrees_fromLivePrecedingSurvey) %>% 
+  mutate(., TotalDead = DeadTrees_fromLivePrecedingSurvey + RecentlyDeadTrees_fromLivePrecedingSurvey) %>% 
+  mutate(., Prop = TotalDead/PreviousLiving) %>% 
+  mutate(., SurvProb = 1- Prop)
+
+
+mean_MA_s <- mean(out$SurvProb, na.rm = T)
+var_MA_s  <- var(out$SurvProb, na.rm = T)
+
+MA_s_alpha <- (mean_MA_s^2 - mean_MA_s^3 - mean_MA_s* var_MA_s)/var_MA_s
+MA_s_beta  <- (mean_MA_s - 2 * mean_MA_s^2 + mean_MA_s^3 - var_MA_s + mean_MA_s* var_MA_s)/var_MA_s
+
+rm(get_betas, out,col_names, cols, mean_MA_s, var_MA_s )
