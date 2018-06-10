@@ -132,6 +132,17 @@ summary(fit)
 
 #################################################################################################################  
   
+load("/Users/elizabethpansing/Box Sync/Yellowstone/88-Fires-Analysis/2017 YNP Data.Rda")
+file <- "1990-2017 YNP Non-whitebark Conifers"
+others <- gs_title(file) %>%
+  gs_read(., ws = 1) %>%
+  dplyr::rename(., DBH = `Height DBH`)
+others <- others %>%
+  mutate(., DBH = as.numeric(DBH),
+         Height = as.numeric(Height),
+         Age = as.numeric(Age))
+
+
 
 
 
