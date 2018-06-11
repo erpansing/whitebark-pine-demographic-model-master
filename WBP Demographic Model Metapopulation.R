@@ -90,17 +90,18 @@ l <- function(){
 }
 
 
-LAIb    <- function(){     # Background leaf area index. This is where competition can be incorporated...
-  return(0)
+LAIb    <- function(tSinceFire){     # Background leaf area index. This is where competition can be incorporated...
+  out <- (0.16 * tSinceFire)/(1 + tSinceFire)
 }
 
 
-LAI <- function(x) {       # LAI of the study area
+LAI <- function(x, tSinceFire) {       # LAI of the study area
   l <- l()
-  c((t(matrix(l[,1], nrow = 5)) %*% x[1:5])/area + LAIb(), (t(matrix(l[,2], nrow = 5)) %*% x[6:10])/area + LAIb())
+  c((t(matrix(l[,1], nrow = 5)) %*% x[1:5])/area + LAIb(tSinceFire)[1], 
+    (t(matrix(l[,2], nrow = 5)) %*% x[6:10])/area + LAIb(tSinceFire)[2])
 }
 
-LAI(n)
+LAI(n, tSinceFire = c(1,1))
 
 
 ## Now define the distributions from which survival and
@@ -267,8 +268,8 @@ residence_vector
 
 No_seeds_per_cone <- 45
 
-rcones <- function(x){
-  0.5/(1 + exp(5 *(LAI(x)-2.25)))
+rcones <- function(x, tSinceFire){
+  0.5/(1 + exp(5 *(LAI(x, tSinceFire = tSinceFire)-2.25)))
 }
 
 No_cones <- function(t, size = 1){ # Seed production in wbp is periodic
@@ -313,23 +314,23 @@ e6 <- matrix(c(0,0,0,0,0,0,1,0,0,0,0,0))
 ## lost to recruitment?
 
 No_caches_1_nofire <- function(cones_1, cones_2, dispersal12, dispersal21, t, size = 1, x){
-  (cones_1 * No_seeds_per_cone * x[5] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal12) +  
-    cones_2 * No_seeds_per_cone * x[10] * (1-Pcons)* (1-Pfind)/3 * dispersal21)
+  (cones_1 * No_seeds_per_cone * s1[3] * x[5]  * (1-Pcons)* (1-Pfind)/3 * (1-dispersal12) +  
+   cones_2 * No_seeds_per_cone * s1[3] * x[10] * (1-Pcons)* (1-Pfind)/3 * dispersal21)
 }
 
 No_caches_1_fire1 <- 0 
 
 No_caches_1_fire2 <- function(cones_1, t, size = 1, x){
-     cones_1 * No_seeds_per_cone * x[5] * (1-Pcons)* (1-Pfind)/3
+     cones_1 * No_seeds_per_cone * s1[3] * x[5] * (1-Pcons)* (1-Pfind)/3
 }
 
 No_caches_2_nofire <- function(cones_1, cones_2,dispersal12, dispersal21, t, size = 1, x){
-  (cones_1 * No_seeds_per_cone * x[10] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal21) +
-     cones_2 * No_seeds_per_cone * x[5] * (1-Pcons)* (1-Pfind)/3 * dispersal12)
+  (cones_2 * No_seeds_per_cone * s1[3]  * x[10] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal21) +
+   cones_1 * No_seeds_per_cone * s1[3]  * x[5]  * (1-Pcons)* (1-Pfind)/3 * dispersal12)
 }
 
 No_caches_2_fire1 <- function(cones_2, t, size = 1, x){
-  cones_2 * No_seeds_per_cone * x[10] * (1-Pcons)* (1-Pfind)/3 
+  cones_2 * No_seeds_per_cone * s1[3] * x[10] * (1-Pcons)* (1-Pfind)/3 
 }
 
 No_caches_2_fire2 <- 0
@@ -343,9 +344,9 @@ No_caches_2_fire2 <- 0
 ##         Define variables dependent on time vars           ##
 ##-----------------------------------------------------------##
 
-SpB    <- function(x){  # Number of seeds available to each bird
-  x[1]/nBirds
-}
+# SpB    <- function(x){  # Number of seeds available to each bird
+  # x[1]/nBirds
+# }
 
 ## Define reduction factors. These variables reduce 
 ## 1) rALS decreases germination as light availability decreases
@@ -353,11 +354,11 @@ SpB    <- function(x){  # Number of seeds available to each bird
 
 
 rALS_germ   <- function(x){   
-  1/(1 + exp(2*(LAI(x)-3))) 
+  1/(1 + exp(2*(LAI(x, tSinceFire = tSinceFire)-3))) 
 }
 
 rALS_sd     <- function(x){
-  1/(1 + exp(2*(LAI(x)-4.5)))
+  1/(1 + exp(2*(LAI(x, tSinceFire = tSinceFire)-4.5)))
 }
 
 # rCache1 <- function(x){
@@ -432,8 +433,8 @@ S <- function(t){
               0,         0,                       0,       t1[2],               s1[3],             0,          0,                       0,         0,                   0,
            #############################################################################################################################################################################
            
-              0,         0,                       0,           0,                   0,             0,          0,                       0,         0,   caches2*t1_SEED1(),  
-              0,         0,                       0,           0,                   0,             0,          0,                       0,         0,   caches2*t2_SEED1(),
+              0,         0,                       0,           0,                   0,             0,          0,                       0,         0,  caches2*t1_SEED1(),  
+              0,         0,                       0,           0,                   0,             0,          0,                       0,         0,                   0,
               0,         0,                       0,           0,                   0,             0,     t_CS(),     s2[1]*rALS_sd(n)[2],         0,                   0,  
               0,         0,                       0,           0,                   0,             0,          0,     t2[1]*rALS_sd(n)[2],     s2[2],                   0,  
               0,         0,                       0,           0,                   0,             0,          0,                       0,     t2[2],                s2[3]),  
@@ -528,7 +529,7 @@ predicted_fire_return_decrease <- data.frame(Year = c(fire_return_decrease$Year,
 # predicted <- exp(fit$coefficients[1] + fit$coefficients[2]* fire_return_decrease$Year)
 predicted <- predict.glm(object = fit, newdata = predicted_fire_return_decrease, type = "response")
 # plot(Interval~Year, data = fire_return_decrease, xlim = c(0,550))
-points(predicted_fire_return_decrease$Year, predicted, pch = 19)
+# points(predicted_fire_return_decrease$Year, predicted, pch = 19)
 
 ## NEED TO: Try to put a distribution on the average rate
 interval <- function(t){
@@ -591,23 +592,6 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
       #--------------------------------------------------------------------------------------------------------------------------------------------      
       t <-  i    # time counter
       
-      
-      ## Update LAI tracker
-      LAI_tracker[j*projection_time - (projection_time)+i,2:4] <- c(i, LAI(n))
-      
-      ## Update parameters drawn from distributions/samples that must remain constant during each year
-      cones <- No_cones(t = t, size = 1) * rcones(n)
-      
-      
-      dispersal12 <- dispersal_25(mean_dispersal = mean_dispersal)
-      dispersal21 <- dispersal_25(mean_dispersal = mean_dispersal)
-      
-      s1 <- si(1)
-      s2 <- si(1)
-      
-      t1 <- ti(1)
-      t2 <- ti(1)
-      
       ## Set up initials for beginning of each iteration
       if (i == 1){
         n          <- n0
@@ -616,7 +600,22 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
         n          <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
       }else if(i != 1){
         tSinceFire <- tSinceFire +1
+      }
+        ## Update LAI tracker
+        LAI_tracker[j*projection_time - (projection_time)+i,2:4] <- c(i, LAI(n, tSinceFire = tSinceFire))
         
+        ## Update parameters drawn from distributions/samples that must remain constant during each year
+        cones <- No_cones(t = t, size = 1) * rcones(n, tSinceFire = tSinceFire)
+        
+        
+        dispersal12 <- dispersal_25(mean_dispersal = mean_dispersal)
+        dispersal21 <- dispersal_25(mean_dispersal = mean_dispersal)
+        
+        s1 <- si(1)
+        s2 <- si(1)
+        
+        t1 <- ti(1)
+        t2 <- ti(1)
         ## Update time counter for each time step
         
         #--------------------------------------------------------------------------------------------------------------------------------------------      
@@ -743,12 +742,11 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
           n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1) 
         }
         ############################################################################################################################################## 
-      }
-      if(i == 1){
-        lambda[j*projection_time - (projection_time) + i, 2:3] <- c(i, NA)
-      }else if(i != 1){
-        lambda[j*projection_time - (projection_time) + i, 2:3] <- c(i, sum(pops[i,])/sum(pops[i-1,]))
-      }
+        if(i == 1){
+          lambda[j*projection_time - (projection_time) + i, 2:3] <- c(i, NA)
+        }else if(i != 1){
+          lambda[j*projection_time - (projection_time) + i, 2:3] <- c(i, sum(pops[i,])/sum(pops[i-1,]))
+        }
     }
     
     pops <- cbind(pops, rep(1:projection_time))  # Appends matrix to keep track of time during iteration
@@ -780,8 +778,8 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
 # n <- c(50000, 20000, 50000, 40000, 75000,  80000, 30000, 5000, 60000, 50000, 70000, 60000)
 
 # n <- c(20, 618, 79, 65, 91,  353, 30, 600, 50, 500, 120, 600)
-n <- c(800, 300, 90, 100, 300, 700, 
-       500, 600, 50, 500, 120, 600)
+n <- c(300, 90, 100, 300, 700, 
+       500, 50, 500, 120, 600)
 
 projection <- project(projection_time = 100, n0 = n, reps = 100, fire = TRUE, FRI_decrease = TRUE) 
 
