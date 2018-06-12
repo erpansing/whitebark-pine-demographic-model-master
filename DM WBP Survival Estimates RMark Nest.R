@@ -12,10 +12,10 @@ load("/Users/elizabethpansing/Box Sync/Yellowstone/88-Fires-Analysis/2017 YNP Da
 
 StatusSummarybyID <- pial %>%        # create table of number of statuses 
   group_by(., IDNumber, Status) %>%  # for each ID
-  summarise(., n()) %>%
+  tally() %>%
   ungroup(.) 
 
-StatusSummarybyID <- dcast(StatusSummarybyID, IDNumber ~ Status, value.var = "n()", fill = 0) %>%
+StatusSummarybyID <- dcast(StatusSummarybyID, IDNumber ~ Status, value.var = "n", fill = 0) %>%
   filter(., D > 0 & L == 0)  # ID trees with only one status (D)
 
 IDs <- StatusSummarybyID$IDNumber  # Collect IDNumbers as a vector

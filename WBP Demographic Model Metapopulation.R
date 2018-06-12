@@ -20,11 +20,16 @@ library(ggplot2)
 ## 2) GRIN WBP Survival Estimates RMark Nest.R
 ## 3) 2017 YNP Data.Rda
 ## 4) survival.Rda
+## 5) Density Dependent Effects.R
 
+source("/Users/elizabethpansing/Box Sync/PhD/Code/WBP Demographic Model Master/WBP Model Active/Density Dependent Effects.R")
 source("/Users/elizabethpansing/Box Sync/PhD/Code/WBP Demographic Model Master/WBP Model Active/GRIN parameter estimates.R") 
 
-n <- c(62, 618, 79, 65, 91,  353, 30, 600, 50, 500, 120, 600)
+n <- c(300, 90, 100, 300, 700, 
+       500, 50, 500, 120, 600)
+# n <- c(62, 618, 79, 65, 91,  353, 30, 600, 50, 500, 120, 600)
 area <- 1e7
+
 
 ## Write function for determining leaf area index (LAI) as a function
 ## of stage specific dbh and the number of trees on the landscape
@@ -90,18 +95,19 @@ l <- function(){
 }
 
 
-LAIb    <- function(tSinceFire){     # Background leaf area index. This is where competition can be incorporated...
-  out <- (0.16 * tSinceFire)/(1 + tSinceFire)
+LAIb    <- function(firetime){     # Background leaf area index. This is where competition can be incorporated...
+  lambda_count <- predict(m2, newdata = data.frame(firetime = firetime))
+  matrix(rep(rpois(n = 1, lambda = lambda_count) * alpha2()*d6()^alpha3()/area,2), ncol = 2)
 }
 
 
-LAI <- function(x, tSinceFire) {       # LAI of the study area
+LAI <- function(x, firetime) {       # LAI of the study area
   l <- l()
-  c((t(matrix(l[,1], nrow = 5)) %*% x[1:5])/area + LAIb(tSinceFire)[1], 
-    (t(matrix(l[,2], nrow = 5)) %*% x[6:10])/area + LAIb(tSinceFire)[2])
+  c((t(matrix(l[,1], nrow = 5)) %*% x[1:5])/area + LAIb(firetime)[1], 
+    (t(matrix(l[,2], nrow = 5)) %*% x[6:10])/area + LAIb(firetime)[2])
 }
 
-LAI(n, tSinceFire = c(1,1))
+LAI(n, firetime = c(1,50))
 
 
 ## Now define the distributions from which survival and
@@ -269,7 +275,7 @@ residence_vector
 No_seeds_per_cone <- 45
 
 rcones <- function(x, tSinceFire){
-  0.5/(1 + exp(5 *(LAI(x, tSinceFire = tSinceFire)-2.25)))
+  0.5/(1 + exp(5 *(LAI(x, firetime = tSinceFire)-2.25)))
 }
 
 No_cones <- function(t, size = 1){ # Seed production in wbp is periodic
@@ -315,7 +321,7 @@ e6 <- matrix(c(0,0,0,0,0,0,1,0,0,0,0,0))
 
 No_caches_1_nofire <- function(cones_1, cones_2, dispersal12, dispersal21, t, size = 1, x){
   (cones_1 * No_seeds_per_cone * s1[3] * x[5]  * (1-Pcons)* (1-Pfind)/3 * (1-dispersal12) +  
-   cones_2 * No_seeds_per_cone * s1[3] * x[10] * (1-Pcons)* (1-Pfind)/3 * dispersal21)
+   cones_2 * No_seeds_per_cone * s2[3] * x[10] * (1-Pcons)* (1-Pfind)/3 * dispersal21)
 }
 
 No_caches_1_fire1 <- 0 
@@ -325,12 +331,12 @@ No_caches_1_fire2 <- function(cones_1, t, size = 1, x){
 }
 
 No_caches_2_nofire <- function(cones_1, cones_2,dispersal12, dispersal21, t, size = 1, x){
-  (cones_2 * No_seeds_per_cone * s1[3]  * x[10] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal21) +
+  (cones_2 * No_seeds_per_cone * s2[3]  * x[10] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal21) +
    cones_1 * No_seeds_per_cone * s1[3]  * x[5]  * (1-Pcons)* (1-Pfind)/3 * dispersal12)
 }
 
 No_caches_2_fire1 <- function(cones_2, t, size = 1, x){
-  cones_2 * No_seeds_per_cone * s1[3] * x[10] * (1-Pcons)* (1-Pfind)/3 
+  cones_2 * No_seeds_per_cone * s2[3] * x[10] * (1-Pcons)* (1-Pfind)/3 
 }
 
 No_caches_2_fire2 <- 0
@@ -353,12 +359,12 @@ No_caches_2_fire2 <- 0
 ## 2) rCache increases caching propensity as seed availability increases
 
 
-rALS_germ   <- function(x){   
-  1/(1 + exp(2*(LAI(x, tSinceFire = tSinceFire)-3))) 
+rALS_germ   <- function(x, tSinceFire){   
+  1/(1 + exp(2*(LAI(x, firetime = tSinceFire)-3))) 
 }
 
-rALS_sd     <- function(x){
-  1/(1 + exp(2*(LAI(x, tSinceFire = tSinceFire)-4.5)))
+rALS_sd     <- function(x, tSinceFire){
+  1/(1 + exp(2*(LAI(x, firetime = tSinceFire)-4.5)))
 }
 
 # rCache1 <- function(x){
@@ -386,20 +392,20 @@ e7_2 <- matrix(c(0,0,0,0,0,0,1,0,0,0))
 
 
 # No. germinated
-germ1stpop1 <- function(caches1,t, size = 1, x){
-  caches1* as.vector(rALS_germ(x)[1]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e2_1
+germ1stpop1 <- function(caches1,t,tSinceFire, size = 1, x){
+  caches1* as.vector(rALS_germ(x, tSinceFire)[1]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e2_1
 }
 
-germ1stpop2 <- function(caches2, t, size = 1, x){
-  caches2 * as.vector(rALS_germ(x)[2]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e7_1
+germ1stpop2 <- function(caches2, t, tSinceFire, size = 1, x){
+  caches2 * as.vector(rALS_germ(x, tSinceFire)[2]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e7_1
 }
 
 
-germ2ndpop1 <- function(t, size = 1, x){
-  as.vector(x[1] * rALS_germ(x)[1]) * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e2_2
+germ2ndpop1 <- function(t,tSinceFire, size = 1, x){
+  as.vector(x[1] * rALS_germ(x, tSinceFire)[1]) * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e2_2
 }
 
-germ2ndpop2 <- function(t, size = 1, x){
+germ2ndpop2 <- function(t,tSinceFire, size = 1, x){
   as.vector(x[6] * rALS_germ(x)[2]) * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e7_2
 }
 
@@ -423,7 +429,7 @@ s2 <- si()
 t1 <-ti()
 t2 <-ti()
 
-S <- function(t){
+S <- function(t, caches1, caches2){
           # SEED2       CS                       SD           SAP           MA                SEED2_2       CS_2                     SD_2      SAP_2                  MA_2       
   matrix(c(
               0,         0,                       0,           0,  caches1*t1_SEED1(),             0,          0,                       0,         0,                   0,
@@ -445,7 +451,7 @@ t <- 1
 S(t) 
 
 
-S_fire_1 <- function(t){
+S_fire_1 <- function(t, caches2){
   matrix(c(
                 0,         0,        0,         0,            0,            0,       0,                       0,         0,                    0,
                 0,         0,        0,         0,            0,            0,       0,                       0,         0,                    0,
@@ -464,7 +470,7 @@ S_fire_1 <- function(t){
 S_fire_1(t)
 
 
-S_fire_2 <- function(t){
+S_fire_2 <- function(t, caches1){
   matrix(c(
              0,         0,                       0,         0,   caches1*t1_SEED1(),                0,       0,         0,         0,            0,
              0,         0,                       0,         0,                    0,                0,       0,         0,         0,            0,
@@ -551,8 +557,9 @@ fire_current_year <- function(t, n = 1){
 
 library(plyr)
 
-n <- c(800, 618, 79, 65, 91,  353, 30, 600, 50, 500, 120, 600)
-
+# n <- c(800, 618, 79, 65, 91,  353, 30, 600, 50, 500, 120, 600)
+n <- c(300, 90, 100, 300, 700, 
+       500, 50, 500, 120, 600)
 
 ##############################################################################################################################################            
 ############################################################################################################################################## 
@@ -590,6 +597,7 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
     
     for(i in 1:projection_time){        
       #--------------------------------------------------------------------------------------------------------------------------------------------      
+      ## Update time counter for each time step
       t <-  i    # time counter
       
       ## Set up initials for beginning of each iteration
@@ -602,7 +610,7 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
         tSinceFire <- tSinceFire +1
       }
         ## Update LAI tracker
-        LAI_tracker[j*projection_time - (projection_time)+i,2:4] <- c(i, LAI(n, tSinceFire = tSinceFire))
+        LAI_tracker[j*projection_time - (projection_time)+i,2:4] <- c(i, LAI(n, firetime = tSinceFire))
         
         ## Update parameters drawn from distributions/samples that must remain constant during each year
         cones <- No_cones(t = t, size = 1) * rcones(n, tSinceFire = tSinceFire)
@@ -616,7 +624,7 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
         
         t1 <- ti(1)
         t2 <- ti(1)
-        ## Update time counter for each time step
+        
         
         #--------------------------------------------------------------------------------------------------------------------------------------------      
         ##############################################################################################################################################            
@@ -652,12 +660,12 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
             # Assuming stand replacing burn with no survival and no regeneration.
             # Most fires go out with first snow. e.g., Romme 1982
             
-            mat      <- S_fire_1(t = t)
+            mat      <- S_fire_1(t = t, caches2 = caches2)
             pops[i,] <- c(t(mat%*%n + 
                               # germ1stpop1(t = t, size = 1, x = n) + 
-                              germ1stpop2(caches2 = caches2, t = t, size = 1, x = n) + 
+                              germ1stpop2(caches2 = caches2, t = t,tSinceFire = tSinceFire, size = 1, x = n) + 
                               # germ2ndpop1(t = t, size = 1, x = n) + 
-                              germ2ndpop2(t = t, size = 1, x = n))) # +
+                              germ2ndpop2(t = t, tSinceFire = tSinceFire, size = 1, x = n))) # +
                               # No_seeds1(t = t, size = 1, x = n) +
                               # No_caches_2_fire1(cones_2 = cones_2, t = t, size = 1, x = n)))  # Defines the intermediate population size
             
@@ -677,11 +685,11 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
             
             # Assuming stand replacing burn with no survival and no regeneration.
             # Most fires go out with first snow. e.g., Romme 1982
-            mat      <- S_fire_2(t = t)
+            mat      <- S_fire_2(t = t, caches1 = caches1)
             pops[i,] <- c(t(mat %*% n + 
-                              germ1stpop1(caches1 = caches1, t = t, size = 1, x = n) + 
+                              germ1stpop1(caches1 = caches1, t = t,tSinceFire = tSinceFire, size = 1, x = n) + 
                               # germ1stpop2(t = t, size = 1, x = n) +
-                              germ2ndpop1(t = t, size = 1, x = n))) #+
+                              germ2ndpop1(t = t, size = 1,tSinceFire = tSinceFire, x = n))) #+
                               # germ2ndpop2(t = t, size = 1, x = n) +
                               #No_caches_1_fire2(cones_1 = cones_1, t = t, size = 1, x = n))) #+
             # No_seeds2(t = t, size = 1, x = n)))  # Defines the intermediate population size
@@ -710,10 +718,10 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
             caches1 <- No_caches_1_nofire(cones_1 = cones[1], cones_2 = cones[2], dispersal12, dispersal21, t = t, size = 1, x = n)
             caches2 <- No_caches_2_nofire(cones_1 = cones[1], cones_2 = cones[2], dispersal12, dispersal21, t = t, size = 1, x = n)
             
-            mat <- S(t = t)
+            mat <- S(t = t, caches1 = caches1, caches2 = caches2)
             pops[i,]  <- c(t(mat%*%n + 
-                               germ1stpop1(caches1 = caches1, t = t, size = 1, x = n) + 
-                               germ1stpop2(caches2 = caches2, t = t, size = 1, x = n) + 
+                               germ1stpop1(caches1 = caches1, t = t, tSinceFire = tSinceFire, size = 1, x = n) + 
+                               germ1stpop2(caches2 = caches2, t = t, tSinceFire = tSinceFire, size = 1, x = n) + 
                                germ2ndpop1(t = t, size = 1, x = n) + 
                                germ2ndpop1(t = t, size = 1, x = n)))  # Defines the intermediate population size 
             
@@ -734,8 +742,8 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
           
           mat <- S(t = t)
           pops[i,] <- c(t(mat%*%n + 
-                            germ1stpop1(caches1 = caches1, t = t, size = 1, x = n) + 
-                            germ1stpop2(caches2 = caches2, t = t, size = 1, x = n) + 
+                            germ1stpop1(caches1 = caches1, t = t, tSinceFire = tSinceFire, size = 1, x = n) + 
+                            germ1stpop2(caches2 = caches2, t = t, tSinceFire = tSinceFire, size = 1, x = n) + 
                             germ2ndpop1(t = t, size = 1, x = n) + 
                             germ2ndpop2(t = t, size = 1, x = n)))  # Defines the intermediate population size
           
@@ -781,9 +789,9 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
 n <- c(300, 90, 100, 300, 700, 
        500, 50, 500, 120, 600)
 
-projection <- project(projection_time = 100, n0 = n, reps = 100, fire = TRUE, FRI_decrease = TRUE) 
+projection1 <- project(projection_time = 3, n0 = n, reps = 3, fire = TRUE, FRI_decrease = TRUE) 
 
-pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
+pop_sizes <- gather(projection1$pop_sizes, Stage, Count, -Iteration, -t) %>%  
   # filter(., !Stage == "SEED1_1") %>%          # Pop sizes in dataframe format
   # filter(., !Stage == "SEED1_2") %>% 
   filter(., !Stage == "SEED2_1") %>%          # and excluding seed numbers (most don't think of seeds)
@@ -795,7 +803,7 @@ pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%
   ungroup(.) %>%                                # intuitive
   mutate(., Density = Count/area)
 
-population <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>% 
+population <- gather(projection1$pop_sizes, Stage, Count, -Iteration, -t) %>% 
   mutate(., Population = ifelse(substr(x = .$Stage, start = 3, stop = 4) == "_1", 1, 2)) %>% 
   # mutate(., Population = ifelse(grepl("1$", Stage), 1, 2))
   group_by(., Population, Iteration, t) %>%             # as a part of the population, so presenting numbers as 
@@ -826,7 +834,7 @@ pop_sizes %>%
   theme(axis.text.x=element_text(size=18))  +
   theme(axis.title.y=element_text( size=18, vjust=2.75, face = "bold")) +
   theme(axis.text.y=element_text(size = 18)) +
-  facet_wrap(~Population)
+  facet_wrap(~Population, scale = "free")
 
 
 pop_sizes %>% 
