@@ -95,19 +95,23 @@ l <- function(){
 }
 
 
-LAIb    <- function(firetime){     # Background leaf area index. This is where competition can be incorporated...
-  lambda_count <- predict(m2, newdata = data.frame(firetime = firetime))
-  matrix(rep(rpois(n = 1, lambda = lambda_count) * alpha2()*d6()^alpha3()/area,2), ncol = 2)
+LAIb    <- function(tSinceFire){     # Background leaf area index. This is where competition can be incorporated...
+  lambda_count <- predict(m2, newdata = data.frame(firetime = tSinceFire[1]))
+  out1 <- rpois(n = 1, lambda = lambda_count) * alpha2()*d6()^alpha3()/area
+  lambda_count <- predict(m2, newdata = data.frame(firetime = tSinceFire[2]))
+  out2 <- rpois(n = 1, lambda = lambda_count) * alpha2()*d6()^alpha3()/area
+  
+  c(out1, out2)
 }
 
 
-LAI <- function(x, firetime) {       # LAI of the study area
+LAI <- function(x, tSinceFire) {       # LAI of the study area
   l <- l()
-  c((t(matrix(l[,1], nrow = 5)) %*% x[1:5])/area + LAIb(firetime)[1], 
-    (t(matrix(l[,2], nrow = 5)) %*% x[6:10])/area + LAIb(firetime)[2])
+  c((t(matrix(l[,1], nrow = 5)) %*% x[1:5])/area + LAIb(tSinceFire = tSinceFire)[1], 
+    (t(matrix(l[,2], nrow = 5)) %*% x[6:10])/area + LAIb(tSinceFire = tSinceFire)[2])
 }
 
-LAI(n, firetime = c(1,50))
+LAI(n, tSinceFire = c(1,50))
 
 
 ## Now define the distributions from which survival and
@@ -275,7 +279,7 @@ residence_vector
 No_seeds_per_cone <- 45
 
 rcones <- function(x, tSinceFire){
-  0.5/(1 + exp(5 *(LAI(x, firetime = tSinceFire)-2.25)))
+  0.5/(1 + exp(5 *(LAI(x, tSinceFire = tSinceFire)-2.25)))
 }
 
 No_cones <- function(t, size = 1){ # Seed production in wbp is periodic
@@ -360,11 +364,11 @@ No_caches_2_fire2 <- 0
 
 
 rALS_germ   <- function(x, tSinceFire){   
-  1/(1 + exp(2*(LAI(x, firetime = tSinceFire)-3))) 
+  1/(1 + exp(2*(LAI(x, tSinceFire = tSinceFire)-3))) 
 }
 
 rALS_sd     <- function(x, tSinceFire){
-  1/(1 + exp(2*(LAI(x, firetime = tSinceFire)-4.5)))
+  1/(1 + exp(2*(LAI(x, tSinceFire = tSinceFire)-4.5)))
 }
 
 # rCache1 <- function(x){
@@ -393,20 +397,20 @@ e7_2 <- matrix(c(0,0,0,0,0,0,1,0,0,0))
 
 # No. germinated
 germ1stpop1 <- function(caches1,t,tSinceFire, size = 1, x){
-  caches1* as.vector(rALS_germ(x, tSinceFire)[1]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e2_1
+  caches1* as.vector(rALS_germ(x, tSinceFire = tSinceFire)[1]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e2_1
 }
 
 germ1stpop2 <- function(caches2, t, tSinceFire, size = 1, x){
-  caches2 * as.vector(rALS_germ(x, tSinceFire)[2]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e7_1
+  caches2 * as.vector(rALS_germ(x, tSinceFire = tSinceFire)[2]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e7_1
 }
 
 
 germ2ndpop1 <- function(t,tSinceFire, size = 1, x){
-  as.vector(x[1] * rALS_germ(x, tSinceFire)[1]) * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e2_2
+  as.vector(x[1] * rALS_germ(x, tSinceFire = tSinceFire)[1]) * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e2_2
 }
 
 germ2ndpop2 <- function(t,tSinceFire, size = 1, x){
-  as.vector(x[6] * rALS_germ(x)[2]) * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e7_2
+  as.vector(x[6] * rALS_germ(x,tSinceFire = tSinceFire)[2]) * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e7_2
 }
 
 
@@ -429,65 +433,60 @@ s2 <- si()
 t1 <-ti()
 t2 <-ti()
 
-S <- function(t, caches1, caches2){
-          # SEED2       CS                       SD           SAP           MA                SEED2_2       CS_2                     SD_2      SAP_2                  MA_2       
+S <- function(t, caches1, caches2, tSinceFire){
+          # SEED2       CS                                             SD      SAP                 MA            SEED2_2       CS_2                                          SD_2      SAP_2                  MA_2       
   matrix(c(
-              0,         0,                       0,           0,  caches1*t1_SEED1(),             0,          0,                       0,         0,                   0,
-              0,         0,                       0,           0,                   0,             0,          0,                       0,         0,                   0,
-              0,    t_CS(),      s1[1]*rALS_sd(n)[1],          0,                   0,             0,          0,                       0,         0,                   0,
-              0,         0,      t1[1]*rALS_sd(n)[1],      s1[2],                   0,             0,          0,                       0,         0,                   0,
-              0,         0,                       0,       t1[2],               s1[3],             0,          0,                       0,         0,                   0,
-           #############################################################################################################################################################################
+              0,         0,                                            0,       0,  caches1*t1_SEED1(),             0,          0,                                             0,         0,                   0,
+              0,         0,                                            0,       0,                   0,             0,          0,                                             0,         0,                   0,
+              0,    t_CS(), s1[1]*rALS_sd(n, tSinceFire = tSinceFire)[1],       0,                   0,             0,          0,                                             0,         0,                   0,
+              0,         0, t1[1]*rALS_sd(n, tSinceFire = tSinceFire)[1],   s1[2],                   0,             0,          0,                                             0,         0,                   0,
+              0,         0,                                            0,   t1[2],               s1[3],             0,          0,                                             0,         0,                   0,
+           ####################################################################################################################################################################################################################
            
-              0,         0,                       0,           0,                   0,             0,          0,                       0,         0,  caches2*t1_SEED1(),  
-              0,         0,                       0,           0,                   0,             0,          0,                       0,         0,                   0,
-              0,         0,                       0,           0,                   0,             0,     t_CS(),     s2[1]*rALS_sd(n)[2],         0,                   0,  
-              0,         0,                       0,           0,                   0,             0,          0,     t2[1]*rALS_sd(n)[2],     s2[2],                   0,  
-              0,         0,                       0,           0,                   0,             0,          0,                       0,     t2[2],                s2[3]),  
+              0,         0,                                            0,       0,                   0,             0,          0,                                             0,         0,  caches2*t1_SEED1(),  
+              0,         0,                                            0,       0,                   0,             0,          0,                                             0,         0,                   0,
+              0,         0,                                            0,       0,                   0,             0,     t_CS(),  s2[1]*rALS_sd(n, tSinceFire = tSinceFire)[2],         0,                   0,  
+              0,         0,                                            0,       0,                   0,             0,          0,  t2[1]*rALS_sd(n, tSinceFire = tSinceFire)[2],     s2[2],                   0,  
+              0,         0,                                            0,       0,                   0,             0,          0,                                             0,     t2[2],                s2[3]),  
          byrow = T, nrow = 10) 
 }
 
-t <- 1
-S(t) 
 
-
-S_fire_1 <- function(t, caches2){
+S_fire_1 <- function(t, caches2, tSinceFire){
   matrix(c(
-                0,         0,        0,         0,            0,            0,       0,                       0,         0,                    0,
-                0,         0,        0,         0,            0,            0,       0,                       0,         0,                    0,
-                0,         0,        0,         0,            0,            0,       0,                       0,         0,                    0,
-                0,         0,        0,         0,            0,            0,       0,                       0,         0,                    0,
-                0,         0,        0,         0,            0,            0,       0,                       0,         0,                    0,
-    ############################################################################################################################################
-                0,         0,        0,         0,            0,            0,       0,                       0,         0,   caches2*t1_SEED1(),  
-                0,         0,        0,         0,            0,            0,       0,                       0,         0,                    0,  
-                0,         0,        0,         0,            0,            0, t_CS(1),     s2[1]*rALS_sd(n)[2],         0,                    0,  
-                0,         0,        0,         0,            0,            0,       0,     t2[1]*rALS_sd(n)[2],     s2[2],                    0,  
-                0,         0,        0,         0,            0,            0,       0,                       0,     t2[2],                 s2[3]),  
+                0,         0,        0,         0,            0,            0,       0,                                              0,         0,                    0,
+                0,         0,        0,         0,            0,            0,       0,                                              0,         0,                    0,
+                0,         0,        0,         0,            0,            0,       0,                                              0,         0,                    0,
+                0,         0,        0,         0,            0,            0,       0,                                              0,         0,                    0,
+                0,         0,        0,         0,            0,            0,       0,                                              0,         0,                    0,
+    #############################################################################################################################################################################
+                0,         0,        0,         0,            0,            0,       0,                                              0,         0,   caches2*t1_SEED1(),  
+                0,         0,        0,         0,            0,            0,       0,                                              0,         0,                    0,  
+                0,         0,        0,         0,            0,            0, t_CS(1),   s2[1]*rALS_sd(n, tSinceFire = tSinceFire)[2],         0,                    0,  
+                0,         0,        0,         0,            0,            0,       0,   t2[1]*rALS_sd(n, tSinceFire = tSinceFire)[2],     s2[2],                    0,  
+                0,         0,        0,         0,            0,            0,       0,                                              0,     t2[2],                 s2[3]),  
          byrow = T, nrow = 10) 
 }
 
-S_fire_1(t)
 
 
-S_fire_2 <- function(t, caches1){
+S_fire_2 <- function(t, caches1, tSinceFire){
   matrix(c(
-             0,         0,                       0,         0,   caches1*t1_SEED1(),                0,       0,         0,         0,            0,
-             0,         0,                       0,         0,                    0,                0,       0,         0,         0,            0,
-             0,   t_CS(1),     s1[1]*rALS_sd(n)[1],         0,                    0,                0,       0,         0,         0,            0,
-             0,         0,     t1[1]*rALS_sd(n)[1],     s1[2],                    0,                0,       0,         0,         0,            0,
-             0,         0,                       0,     t1[2],                s1[3],                0,       0,         0,         0,            0,
-           ###################################################################################################################################################
+             0,         0,                                             0,         0,   caches1*t1_SEED1(),                0,       0,         0,         0,            0,
+             0,         0,                                             0,         0,                    0,                0,       0,         0,         0,            0,
+             0,   t_CS(1),  s1[1]*rALS_sd(n, tSinceFire = tSinceFire)[1],         0,                    0,                0,       0,         0,         0,            0,
+             0,         0,  t1[1]*rALS_sd(n, tSinceFire = tSinceFire)[1],     s1[2],                    0,                0,       0,         0,         0,            0,
+             0,         0,                                             0,     t1[2],                s1[3],                0,       0,         0,         0,            0,
+           ###########################################################################################################################################################################
       
-             0,         0,                       0,         0,                    0,                0,         0,       0,         0,            0,
-             0,         0,                       0,         0,                    0,                0,         0,       0,         0,            0,  
-             0,         0,                       0,         0,                    0,                0,         0,       0,         0,            0,  
-             0,         0,                       0,         0,                    0,                0,         0,       0,         0,            0,  
-             0,         0,                       0,         0,                    0,                0,         0,       0,         0,            0),  
+             0,         0,                                             0,         0,                    0,                0,         0,       0,         0,            0,
+             0,         0,                                             0,         0,                    0,                0,         0,       0,         0,            0,  
+             0,         0,                                             0,         0,                    0,                0,         0,       0,         0,            0,  
+             0,         0,                                             0,         0,                    0,                0,         0,       0,         0,            0,  
+             0,         0,                                             0,         0,                    0,                0,         0,       0,         0,            0),  
          byrow = T, nrow = 10) 
 }
 
-S_fire_2(t)
 
 S_fire_both <- function(t){
   matrix(c(
@@ -505,8 +504,6 @@ S_fire_both <- function(t){
          byrow = T, nrow = 10) 
 }
 
-
-S_fire_both(t)
 
 
 ##-----------------------------------------------------------##
@@ -610,7 +607,7 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
         tSinceFire <- tSinceFire +1
       }
         ## Update LAI tracker
-        LAI_tracker[j*projection_time - (projection_time)+i,2:4] <- c(i, LAI(n, firetime = tSinceFire))
+        LAI_tracker[j*projection_time - (projection_time)+i,2:4] <- c(i, LAI(n, tSinceFire = tSinceFire))
         
         ## Update parameters drawn from distributions/samples that must remain constant during each year
         cones <- No_cones(t = t, size = 1) * rcones(n, tSinceFire = tSinceFire)
@@ -660,7 +657,7 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
             # Assuming stand replacing burn with no survival and no regeneration.
             # Most fires go out with first snow. e.g., Romme 1982
             
-            mat      <- S_fire_1(t = t, caches2 = caches2)
+            mat      <- S_fire_1(t = t, caches2 = caches2, tSinceFire = tSinceFire)
             pops[i,] <- c(t(mat%*%n + 
                               # germ1stpop1(t = t, size = 1, x = n) + 
                               germ1stpop2(caches2 = caches2, t = t,tSinceFire = tSinceFire, size = 1, x = n) + 
@@ -685,7 +682,7 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
             
             # Assuming stand replacing burn with no survival and no regeneration.
             # Most fires go out with first snow. e.g., Romme 1982
-            mat      <- S_fire_2(t = t, caches1 = caches1)
+            mat      <- S_fire_2(t = t, caches1 = caches1, tSinceFire = tSinceFire)
             pops[i,] <- c(t(mat %*% n + 
                               germ1stpop1(caches1 = caches1, t = t,tSinceFire = tSinceFire, size = 1, x = n) + 
                               # germ1stpop2(t = t, size = 1, x = n) +
@@ -718,12 +715,12 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
             caches1 <- No_caches_1_nofire(cones_1 = cones[1], cones_2 = cones[2], dispersal12, dispersal21, t = t, size = 1, x = n)
             caches2 <- No_caches_2_nofire(cones_1 = cones[1], cones_2 = cones[2], dispersal12, dispersal21, t = t, size = 1, x = n)
             
-            mat <- S(t = t, caches1 = caches1, caches2 = caches2)
+            mat <- S(t = t, caches1 = caches1, caches2 = caches2, tSinceFire = tSinceFire)
             pops[i,]  <- c(t(mat%*%n + 
                                germ1stpop1(caches1 = caches1, t = t, tSinceFire = tSinceFire, size = 1, x = n) + 
                                germ1stpop2(caches2 = caches2, t = t, tSinceFire = tSinceFire, size = 1, x = n) + 
-                               germ2ndpop1(t = t, size = 1, x = n) + 
-                               germ2ndpop1(t = t, size = 1, x = n)))  # Defines the intermediate population size 
+                               germ2ndpop1(t = t, size = 1, x = n, tSinceFire = tSinceFire) + 
+                               germ2ndpop1(t = t, size = 1, x = n, tSinceFire = tSinceFire)))  # Defines the intermediate population size 
             
             n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
             
@@ -789,7 +786,7 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
 n <- c(300, 90, 100, 300, 700, 
        500, 50, 500, 120, 600)
 
-projection1 <- project(projection_time = 3, n0 = n, reps = 3, fire = TRUE, FRI_decrease = TRUE) 
+projection1 <- project(projection_time = 100, n0 = n, reps = 100, fire = TRUE, FRI_decrease = TRUE) 
 
 pop_sizes <- gather(projection1$pop_sizes, Stage, Count, -Iteration, -t) %>%  
   # filter(., !Stage == "SEED1_1") %>%          # Pop sizes in dataframe format
@@ -810,11 +807,11 @@ population <- gather(projection1$pop_sizes, Stage, Count, -Iteration, -t) %>%
   summarise_at(., vars(Count), funs(sum)) %>% # number of living trees (i.e., post germination) is more
   ungroup(.)
 
-lambdas <- as.data.frame(projection$lambda)
+lambdas <- as.data.frame(projection1$lambda)
 colnames(lambdas) <- c("Iteration", "Time", "Lambda")
 median(lambdas$Lambda, na.rm = T)
 
-Fire_years <- as.data.frame(projection$fire_tracker) %>% 
+Fire_years <- as.data.frame(projection1$fire_tracker) %>% 
   dplyr::rename(., Iteration = V1, Year = V2, Pop1 = V3, Pop2 = V4) 
 
 test <- Fire_years %>% 
@@ -979,13 +976,13 @@ upper <- function(x){
   quantile(x, prob = 0.975)
 }
 
-LAI_values <- as.data.frame(projection[[3]]) %>% 
+LAI_values <- as.data.frame(projection1[[3]]) %>% 
   dplyr::select(., Iteration = V1, Time = V2, LAI = V3) %>% 
   group_by(., Time) %>% 
   summarise_at(., vars(LAI), funs(mean, lower, upper)) %>% 
   dplyr::select(.,Time, LAI = mean,lower, upper)
 
-test <- as.data.frame(projection[[3]]) %>% 
+test <- as.data.frame(projection1[[3]]) %>% 
   dplyr::select(., Iteration = V1, Time = V2, LAI = V3) %>% 
   filter(., Time %in% seq(0,100, 5))
 
