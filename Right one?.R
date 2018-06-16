@@ -20,13 +20,9 @@ library(tidyr)
 ## 3) 2017 YNP Data.Rda
 ## 4) survival.Rda
 
-source("/Users/elizabethpansing/Box Sync/PhD/Code/WBP Demographic Model Master/WBP Model Active/Density Dependent Effects.R")
 source("/Users/elizabethpansing/Box Sync/PhD/Code/WBP Demographic Model Master/WBP Model Active/GRIN parameter estimates.R") 
 
-
-
-n <- c(300, 90, 100, 300, 700, 
-       500, 50, 500, 120, 600)
+n <- c(62, 618, 79, 65, 91,  353, 30, 600, 50, 500, 120, 600)
 area <- 1e7
 
 ## Write function for determining leaf area index (LAI) as a function
@@ -37,9 +33,9 @@ area <- 1e7
 ##***********************************************************##
 
 #mean dbh for each stage
-# d1 <- function() {   # dbh SEED1
-#   return(0)
-# }
+d1 <- function() {   # dbh SEED1
+  return(0)
+}
 
 d2 <- function() {   #dbh SEED2 
   return(0)
@@ -78,38 +74,34 @@ alpha3 <- function(){
 
 
 l <- function(){
-  matrix(c(#d1(),      # SEED1 do not contribute to LAI
+  matrix(c(d1(),      # SEED1 do not contribute to LAI
            d2(),      # SEED2 do not contribute to LAI
            d3(),      # CS do not contribute to LAI
            alpha1(),  # SD1 don't have DBH but do contribute to LAI 
            alpha2() * d5() ^ alpha3(),
            alpha2() * d6() ^ alpha3(),
-           #d1(),      # SEED1 do not contribute to LAI
+           d1(),      # SEED1 do not contribute to LAI
            d2(),      # SEED2 do not contribute to LAI
            d3(),      # CS do not contribute to LAI
            alpha1(),  # SD1 don't have DBH but do contribute to LAI 
            alpha2() * d5() ^ alpha3(),
-           alpha2() * d6() ^ alpha3()), nrow = 5)
+           alpha2() * d6() ^ alpha3()), nrow = 6)
 }
 
 
-LAIb    <- function(tSinceFire){     # Background leaf area index. This is where competition can be incorporated...
-  lambda_count <- predict(m2, newdata = data.frame(firetime = tSinceFire[1]))
-  out1 <- rpois(n = 1, lambda = lambda_count) * alpha2()*d6()^alpha3()/area
-  lambda_count <- predict(m2, newdata = data.frame(firetime = tSinceFire[2]))
-  out2 <- rpois(n = 1, lambda = lambda_count) * alpha2()*d6()^alpha3()/area
-  
-  c(out1, out2)
+LAIb    <- function(){     # Background leaf area index. This is where competition can be incorporated...
+  return(0)
 }
 
 
-LAI <- function(x, tSinceFire) {       # LAI of the study area
+LAI <- function(x) {       # LAI of the study area
   l <- l()
-  c((t(matrix(l[,1], nrow = 5)) %*% x[1:5])/area + LAIb(tSinceFire = tSinceFire)[1], 
-    (t(matrix(l[,2], nrow = 5)) %*% x[6:10])/area + LAIb(tSinceFire = tSinceFire)[2])
+  c((t(matrix(l[,1], nrow = 6)) %*% x[1:6])/area + LAIb(), (t(matrix(l[,2], nrow = 6)) %*% x[7:12])/area + LAIb())
 }
 
-LAI(n, tSinceFire = c(1,50))
+LAI(n)
+
+
 ## Now define the distributions from which survival and
 ## transition rates will be drawn to create stochastic demographic rates
 
@@ -274,8 +266,8 @@ residence_vector
 
 No_seeds_per_cone <- 45
 
-rcones <- function(x, tSinceFire){
-  0.5/(1 + exp(5 *(LAI(x, tSinceFire = tSinceFire)-2.25)))
+rcones <- function(x){
+  0.5/(1 + exp(5 *(LAI(x)-2.25)))
 }
 
 No_cones <- function(t, size = 1){ # Seed production in wbp is periodic
@@ -313,33 +305,33 @@ dispersal_25 <- function(mean_dispersal){   # Here we're assuming that the popul
   # return(out)
 }
 
-# e1 <- matrix(c(1,0,0,0,0,0,0,0,0,0,0,0))
-# e6 <- matrix(c(0,0,0,0,0,0,1,0,0,0,0,0))
+e1 <- matrix(c(1,0,0,0,0,0,0,0,0,0,0,0))
+e6 <- matrix(c(0,0,0,0,0,0,1,0,0,0,0,0))
 
 ## Do birds cache more in subpopulation 1 during years of fire in subpopulation 2? Or are they 
 ## lost to recruitment?
 
 No_caches_1_nofire <- function(cones_1, cones_2, dispersal12, dispersal21, t, size = 1, x){
-  (cones_1 * No_seeds_per_cone * x[5] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal12) +  
-     cones_2 * No_seeds_per_cone * x[10] * (1-Pcons)* (1-Pfind)/3 * dispersal21)
+  (cones_1 * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal12) +  
+     cones_2 * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * dispersal21)* e1
 }
 
-No_caches_1_fire1 <- 0
+No_caches_1_fire1 <- 0 * e1
 
 No_caches_1_fire2 <- function(cones_1, t, size = 1, x){
-  cones_1 * No_seeds_per_cone * x[5] * (1-Pcons)* (1-Pfind)/3
+  cones_1 * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * e1
 }
 
 No_caches_2_nofire <- function(cones_1, cones_2,dispersal12, dispersal21, t, size = 1, x){
-  (cones_1 * No_seeds_per_cone * x[10] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal21) +
-     cones_2 * No_seeds_per_cone * x[5] * (1-Pcons)* (1-Pfind)/3 * dispersal12)
+  (cones_1 * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * (1-dispersal21) +
+     cones_2 * No_seeds_per_cone * x[6] * (1-Pcons)* (1-Pfind)/3 * dispersal12)* e6
 }
 
 No_caches_2_fire1 <- function(cones_2, t, size = 1, x){
-  cones_2 * No_seeds_per_cone * x[10] * (1-Pcons)* (1-Pfind)/3 
+  cones_2 * No_seeds_per_cone * x[12] * (1-Pcons)* (1-Pfind)/3 * e6
 }
 
-No_caches_2_fire2 <- 0 
+No_caches_2_fire2 <- 0 * e6
 
 
 ##-----------------------------------------------------------##
@@ -359,14 +351,13 @@ SpB    <- function(x){  # Number of seeds available to each bird
 ## 2) rCache increases caching propensity as seed availability increases
 
 
-rALS_germ   <- function(x, tSinceFire){   
-  1/(1 + exp(2 * (LAI(x, tSinceFire = tSinceFire) - 3))) 
+rALS_germ   <- function(x){   
+  1/(1 + exp(2*(LAI(x)-3))) 
 }
 
-rALS_sd     <- function(x, tSinceFire){
-  1/(1 + exp(1.5 * (LAI(x, tSinceFire = tSinceFire) - 4.5)))
+rALS_sd     <- function(x){
+  1/(1 + exp(2*(LAI(x)-4.5)))
 }
-
 
 # rCache1 <- function(x){
 #   0.73/(1+ exp((31000-SpB(x[1:6]))/3000))  
@@ -376,10 +367,10 @@ rALS_sd     <- function(x, tSinceFire){
 #   0.73/(1+ exp((31000-SpB(x[7:12]))/3000))  
 # }
 
-e2_1 <- matrix(c(0,1,0,0,0,0,0,0,0,0))
-e2_2 <- matrix(c(0,1,0,0,0,0,0,0,0,0))
-e7_1 <- matrix(c(0,0,0,0,0,0,1,0,0,0))
-e7_2 <- matrix(c(0,0,0,0,0,0,1,0,0,0))
+e3_1 <- matrix(c(0,0,1,0,0,0,0,0,0,0,0,0))
+e3_2 <- matrix(c(0,0,1,0,0,0,0,0,0,0,0,0))
+e9_1 <- matrix(c(0,0,0,0,0,0,0,0,1,0,0,0))
+e9_2 <- matrix(c(0,0,0,0,0,0,0,0,1,0,0,0))
 
 ## Define germination probability
 # r2 <- function(x){
@@ -393,20 +384,20 @@ e7_2 <- matrix(c(0,0,0,0,0,0,1,0,0,0))
 
 
 # No. germinated
-germ1stpop1 <- function(t, size = 1, x, caches1, tSinceFire){
-  caches1* as.vector(rALS_germ(x, tSinceFire = tSinceFire)[1]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e2_1
+germ1stpop1 <- function(t, size = 1, x){
+  as.vector(x[1])* as.vector(rALS_germ(x)[1]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e3_1
 }
 
-germ1stpop2 <- function(t, size = 1, x = x, caches2, tSinceFire){
-  caches2 * as.vector(rALS_germ(x, tSinceFire = tSinceFire)[2]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e7_1
+germ1stpop2 <- function(t, size = 1, x){
+  as.vector(x[7]) * as.vector(rALS_germ(x)[2]) * rbeta(n = 1, shape1 = SEED1_germ_alpha, shape2= SEED1_germ_beta) * e9_1
 }
 
-germ2ndpop1 <- function(t, size = 1, n, x, tSinceFire){
-  n[1] * rALS_germ(x, tSinceFire = tSinceFire)[1] * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e2_2 
+germ2ndpop1 <- function(t, size = 1, x){
+  as.vector(x[2] * rALS_germ(x)) * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e3_2 
 }
 
-germ2ndpop2 <- function(t, size = 1, n, x, tSinceFire){
-  n[6] * rALS_germ(x, tSinceFire = tSinceFire)[2] * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e7_2 
+germ2ndpop2 <- function(t, size = 1, x){
+  as.vector(x[8] * rALS_germ(x)) * rbeta(n = 1, shape1 = SEED2_germ_alpha, shape2 = SEED2_germ_beta) * e9_2 
 }
 
 ##-----------------------------------------------------------##
@@ -423,77 +414,82 @@ ti <- function(size = 1) {                 # Gives probability of surviving and 
 }                                      # same life stage for > 1 year)
 
 
-S <- function(t, tSinceFire, x = n){
-  #     SEED2        CS                                                   SD           SAP           MA        SEED2_2      CS_2                                                 SD_2      SAP_2         MA_2       
-  matrix(c(0,         0,                                                   0,           0,            0,            0,        0,                                                   0,         0,            0,
-           0,         0,                                                   0,           0,            0,            0,        0,                                                   0,         0,            0,
-           0,   t_CS(1), rALS_sd(x = n, tSinceFire = tSinceFire)[1]*si(1)[1],           0,            0,            0,        0,                                                   0,         0,            0,
-           0,         0, rALS_sd(x = n, tSinceFire = tSinceFire)[1]*ti(1)[1],    si(1)[2],            0,            0,        0,                                                   0,         0,            0,
-           0,         0,                                                   0,    ti(1)[2],     si(1)[3],            0,        0,                                                   0,         0,            0,
-           
-         #############################################################################################################################################################################################################################
-           
-           0,         0,                                                   0,           0,            0,           0,        0,                                                    0,         0,            0,  
-           0,         0,                                                   0,           0,            0,           0,        0,                                                    0,         0,            0,  
-           0,         0,                                                   0,           0,            0,           0,  t_CS(1),  rALS_sd(x = n, tSinceFire = tSinceFire)[2]*si(1)[2],         0,            0,  
-           0,         0,                                                   0,           0,            0,           0,        0,  rALS_sd(x = n, tSinceFire = tSinceFire)[2]*ti(1)[2],  si(1)[2],            0,  
-           0,         0,                                                   0,           0,            0,           0,        0,                                                    0,  ti(1)[2],     si(1)[3]),  
-         byrow = T, nrow = 10) 
+S <- function(t){
+  # SEED1      SEED2       CS                       SD           SAP           MA          SEED1_2     SEED2_2       CS_2                     SD_2      SAP_2         MA_2       
+  matrix(c(0,            0,         0,                       0,           0,            0,             0,            0,        0,                       0,         0,            0, 
+           t1_SEED1(1),  0,         0,                       0,           0,            0,             0,            0,        0,                       0,         0,            0,
+           0,            0,         0,                       0,           0,            0,             0,            0,        0,                       0,         0,            0,
+           0,            0,   t_CS(1),  si(1)[1]*rALS_sd(n)[1],           0,            0,             0,            0,        0,                       0,         0,            0,
+           0,            0,         0,  ti(1)[1]*rALS_sd(n)[1],    si(1)[2],            0,             0,            0,        0,                       0,         0,            0,
+           0,            0,         0,                       0,    ti(1)[2],     si(1)[3],             0,            0,        0,                       0,         0,            0,
+           ####################################################################################################################################################################################
+           0,            0,         0,                       0,           0,            0,             0,            0,        0,                       0,         0,            0, 
+           0,            0,         0,                       0,           0,            0,   t1_SEED1(1),            0,        0,                       0,         0,            0,  
+           0,            0,         0,                       0,           0,            0,             0,            0,        0,                       0,         0,            0,  
+           0,            0,         0,                       0,           0,            0,             0,            0,  t_CS(1),  si(1)[1]*rALS_sd(n)[2],         0,            0,  
+           0,            0,         0,                       0,           0,            0,             0,            0,        0,  ti(1)[1]*rALS_sd(n)[2],  si(1)[2],            0,  
+           0,            0,         0,                       0,           0,            0,             0,            0,        0,                       0,  ti(1)[2],     si(1)[3]),  
+         byrow = T, nrow = 12) 
 }
 
+t <- 1
+S(t) 
 
 
-S_fire_1 <- function(t, tSinceFire, x = n){
-  #     SEED2        CS         SD        SAP           MA        SEED2_2       CS_2                                                SD_2      SAP_2       MA_2       
-  matrix(c(0,         0,        0,         0,            0,          0,            0,                                                0,          0,         0,    
-           0,         0,        0,         0,            0,          0,            0,                                                0,          0,         0,    
-           0,         0,        0,         0,            0,          0,            0,                                                0,          0,         0,    
-           0,         0,        0,         0,            0,          0,            0,                                                0,          0,         0,    
-           0,         0,        0,         0,            0,          0,            0,                                                0,          0,         0,    
+S_fire_1 <- function(t){
+  matrix(c(0,            0,         0,        0,         0,            0,          0,            0,       0,                       0,         0,            0, 
+           0,            0,         0,        0,         0,            0,          0,            0,       0,                       0,         0,            0,
+           0,            0,         0,        0,         0,            0,          0,            0,       0,                       0,         0,            0,
+           0,            0,         0,        0,         0,            0,          0,            0,       0,                       0,         0,            0,
+           0,            0,         0,        0,         0,            0,          0,            0,       0,                       0,         0,            0,
+           0,            0,         0,        0,         0,            0,          0,            0,       0,                       0,         0,            0,
            ###########################################################################################################################################################
-           0,         0,         0,        0,            0,          0,            0,                                                0,          0,         0,  
-           0,         0,         0,        0,            0,          0,            0,                                                0,          0,         0,  
-           0,         0,         0,        0,            0,          0,      t_CS(1),  rALS_sd(x = n, tSinceFire = tSinceFire)[2]*si(1)[1],          0,         0,  
-           0,         0,         0,        0,            0,          0,            0,  rALS_sd(x = n, tSinceFire = tSinceFire)[2]*ti(1)[1],   si(1)[2],         0,  
-           0,         0,         0,        0,            0,          0,            0,                                                0,   ti(1)[2],  si(1)[3]),  
-         byrow = T, nrow = 10) 
+           0,            0,         0,        0,         0,            0,          0,            0,       0,                       0,         0,            0, 
+           0,            0,         0,        0,         0,            0, t1_SEED1(1),           0,       0,                       0,         0,            0,  
+           0,            0,         0,        0,         0,            0,          0,            0,       0,                       0,         0,            0,  
+           0,            0,         0,        0,         0,            0,          0,            0, t_CS(1),  si(1)[1]*rALS_sd(n)[2],         0,            0,  
+           0,            0,         0,        0,         0,            0,          0,            0,       0,  ti(1)[1]*rALS_sd(n)[2],  si(1)[2],            0,  
+           0,            0,         0,        0,         0,            0,          0,            0,       0,                       0,  ti(1)[2],     si(1)[3]),  
+         byrow = T, nrow = 12) 
 }
 
 S_fire_1(t)
 
 
-S_fire_2 <- function(t, tSinceFire, x = n){
-  #     SEED2        CS                                                     SD        SAP           MA        SEED2_2       CS_2        SD_2      SAP_2       MA_2       
-  matrix(c(0,         0,                                                    0,         0,            0,          0,         0,         0,         0,            0,
-           0,         0,                                                    0,         0,            0,          0,         0,         0,         0,            0,
-           0,   t_CS(1),  rALS_sd(x = n, tSinceFire = tSinceFire)[1]*si(1)[1],         0,            0,          0,         0,         0,         0,            0,
-           0,         0,  rALS_sd(x = n, tSinceFire = tSinceFire)[2]*ti(1)[1],  si(1)[2],            0,          0,         0,         0,         0,            0,
-           0,         0,                                                    0,  ti(1)[2],     si(1)[3],          0,         0,         0,         0,            0,
+S_fire_2 <- function(t){
+  matrix(c(0,            0,         0,                       0,         0,            0,          0,            0,       0,         0,         0,            0, 
+           t1_SEED1(1),  0,         0,                       0,         0,            0,          0,            0,       0,         0,         0,            0,
+           0,            0,         0,                       0,         0,            0,          0,            0,       0,         0,         0,            0,
+           0,            0,   t_CS(1),  si(1)[1]*rALS_sd(n)[1],         0,            0,          0,            0,       0,         0,         0,            0,
+           0,            0,         0,  ti(1)[1]*rALS_sd(n)[1],  si(1)[2],            0,          0,            0,       0,         0,         0,            0,
+           0,            0,         0,                       0,  ti(1)[2],     si(1)[3],          0,            0,       0,         0,         0,            0,
            ######################################################################################################################################################
-           0,         0,                                                    0,         0,            0,          0,         0,         0,         0,            0,
-           0,         0,                                                    0,         0,            0,          0,         0,         0,         0,            0,  
-           0,         0,                                                    0,         0,            0,          0,         0,         0,         0,            0,  
-           0,         0,                                                    0,         0,            0,          0,         0,         0,         0,            0,  
-           0,         0,                                                    0,         0,            0,          0,         0,         0,         0,            0),  
-         byrow = T, nrow = 10) 
+           0,            0,         0,                       0,         0,            0,          0,            0,         0,       0,         0,            0, 
+           0,            0,         0,                       0,         0,            0,          0,            0,         0,       0,         0,            0,
+           0,            0,         0,                       0,         0,            0,          0,            0,         0,       0,         0,            0,  
+           0,            0,         0,                       0,         0,            0,          0,            0,         0,       0,         0,            0,  
+           0,            0,         0,                       0,         0,            0,          0,            0,         0,       0,         0,            0,  
+           0,            0,         0,                       0,         0,            0,          0,            0,         0,       0,         0,            0),  
+         byrow = T, nrow = 12) 
 }
 
 S_fire_2(t)
 
 S_fire_both <- function(t){
-  #      SEED2           CS         SD        SAP           MA        SEED2_2       CS_2        SD_2      SAP_2       MA_2       
-  matrix(c(0,            0,         0,        0,         0,            0,          0,            0,         0,          0,
-           0,            0,         0,        0,         0,            0,          0,            0,         0,          0,
-           0,            0,         0,        0,         0,            0,          0,            0,         0,          0,
-           0,            0,         0,        0,         0,            0,          0,            0,         0,          0,
-           0,            0,         0,        0,         0,            0,          0,            0,         0,          0,
-           #########################################################################################################################
-           0,            0,         0,        0,         0,            0,          0,            0,         0,          0,
-           0,            0,         0,        0,         0,            0,          0,            0,         0,          0,  
-           0,            0,         0,        0,         0,            0,          0,            0,         0,          0,  
-           0,            0,         0,        0,         0,            0,          0,            0,         0,          0,  
-           0,            0,         0,        0,         0,            0,          0,            0,         0,          0),  
-         byrow = T, nrow = 10) 
+  matrix(c(0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0,
+           0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0,
+           0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0,
+           0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0,
+           0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0,
+           0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0,
+           #######################################################################################################################################
+           0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0, 
+           0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0,
+           0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0,  
+           0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0,  
+           0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0,  
+           0,            0,         0,        0,         0,            0,          0,            0,         0,        0,         0,            0),  
+         byrow = T, nrow = 12) 
 }
 
 
@@ -548,9 +544,7 @@ fire_current_year <- function(t, n = 1){
 
 library(plyr)
 
-
-n <- c(300, 90, 100, 300, 700, 
-       500, 50, 500, 120, 600)
+n <- c(800, 618, 79, 65, 91,  353, 30, 600, 50, 500, 120, 600)
 
 
 ##############################################################################################################################################            
@@ -558,11 +552,11 @@ n <- c(300, 90, 100, 300, 700,
 ############################################################################################################################################## 
 ############################################################################################################################################## 
 
-project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T){       # stochastic projection function 
+project <- function(projection_time, n0, reps = 100, fire = T){       # stochastic projection function 
   # that tracks stage based pop sizes 
   # over time for reps number of iterations
-  if(length(n0) != 10)
-    stop("\nPopulation size vector must be of length 10")
+  if(length(n0) != 12)
+    stop("\nPopulation size vector must be of length 12")
   
   
   results <-                                                 #Create null matrix that will hold stage
@@ -573,8 +567,6 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
   
   for(j in 1:reps){       # Iterate through i years (projection_time) of population growth j times (iterations)
     # Incorporate FIRE
-    cat(paste0("......Iteration ", j,"......\n"))
-    
     if(j == 1){           
       fire_tracker   <- matrix(c(rep(1:reps, each = projection_time),rep(0, projection_time*reps*3)), 
                                nrow = projection_time * reps, ncol = 4, byrow = F)  
@@ -591,167 +583,150 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
     
     for(i in 1:projection_time){        
       #--------------------------------------------------------------------------------------------------------------------------------------------      
-      # cat(paste0("Year ", i,"\n"))
+      t <-  i    # time counter
+      
+      
+      ## Update LAI tracker
+      LAI_tracker[j*projection_time - (projection_time)+i,2:4] <- c(i, LAI(n))
+      
+      ## Update parameters drawn from distributions/samples that must remain constant during each year
+      cones_1 <- No_cones(t = t, size = 1) * rcones(n)
+      cones_2 <- No_cones(t = t,size = 1 ) * rcones(n)
+      
+      dispersal12 <- dispersal_25(mean_dispersal = mean_dispersal)
+      dispersal21 <- dispersal_25(mean_dispersal = mean_dispersal)
       
       ## Set up initials for beginning of each iteration
       if (i == 1){
         n          <- n0
         tSinceFire <- c(1,1)
         pops[i,]   <- n0
-      
+        n          <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
       }else if(i != 1){
         tSinceFire <- tSinceFire +1
-      }
-      ## Update time counter for each time step
-      t <-  i    # time counter
-      
-      
-      ## Update LAI tracker
-      LAI_tracker[j*projection_time - (projection_time)+i,2:4] <- c(i, LAI(n, tSinceFire = tSinceFire))
-      
-      
-      dispersal12 <- dispersal_25(mean_dispersal = mean_dispersal)
-      dispersal21 <- dispersal_25(mean_dispersal = mean_dispersal)
-      
-      s1 <- si(1)
-      s2 <- si(1)
-      
-      t1 <- ti(1)
-      t2 <- ti(1)
-      #--------------------------------------------------------------------------------------------------------------------------------------------      
-      ##############################################################################################################################################            
-      ##                                                                FIRE POSSIBLE                    
-      ##############################################################################################################################################            
-      if(fire == T){
-        fire_current <- fire_current_year(t)  # Determine whether this iteration experiences a stand replacing fire
-        fire_tracker[j*projection_time - (projection_time)+i,2:4] <- c(i, fire_current)
         
-        ## 1) There's a fire. This kills the population. Assumes stand replacing burn that impacts entire population
-        ##    And that no regeneration occurs the year of the fire
-        ## 2) There's no fire and it's >1 year after fire. In this case, there are no modifications and the 
-        ##    system proceeds as normal. If it's the year after fire, the only seed source is from the other subpopulation
-        #--------------------------------------------------------------------------------------------------------------------------------------------              
-        ## Fire can occur in different combinations
-        ## 1) Fire in pop1 but not pop2: fire_current = 0,1
-        ## 2) Fire in pop2 but not pop1: fire_current = 1,0
-        ## 3) Fire in both populations: fire_current = 1,1
+        ## Update time counter for each time step
         
-        ## 1) FIRE IN 1 BUT NOT 2
-        
-        if(fire_current[1] == T & fire_current[2] == F){                  
+        #--------------------------------------------------------------------------------------------------------------------------------------------      
+        ##############################################################################################################################################            
+        ##                                                                FIRE POSSIBLE                    
+        ##############################################################################################################################################            
+        if(fire == T){
+          fire_current <- fire_current_year(t)  # Determine whether this iteration experiences a stand replacing fire
+          fire_tracker[j*projection_time - (projection_time)+i,2:4] <- c(i, fire_current)
           
-          tSinceFire <- c(0, tSinceFire[2]) 
+          ## 1) There's a fire. This kills the population. Assumes stand replacing burn that impacts entire population
+          ##    And that no regeneration occurs the year of the fire
+          ## 2) There's no fire and it's >1 year after fire. In this case, there are no modifications and the 
+          ##    system proceeds as normal. If it's the year after fire, the only seed source is from the other subpopulation
+          #--------------------------------------------------------------------------------------------------------------------------------------------              
+          ## Fire can occur in different combinations
+          ## 1) Fire in pop1 but not pop2: fire_current = 0,1
+          ## 2) Fire in pop2 but not pop1: fire_current = 1,0
+          ## 3) Fire in both populations: fire_current = 1,1
           
-          # Assuming stand replacing burn with no survival and no regeneration.
-          # Most fires go out with first snow. e.g., Romme 1982
+          ## 1) FIRE IN 1 BUT NOT 2
           
-          mat      <- S_fire_1(t = t, tSinceFire = tSinceFire)
+          if(fire_current[1] == T & fire_current[2] == F){                  
+            
+            tSinceFire <- c(0, tSinceFire[2]) 
+            
+            # Assuming stand replacing burn with no survival and no regeneration.
+            # Most fires go out with first snow. e.g., Romme 1982
+            
+            mat      <- S_fire_1(t = t)
+            pops[i,] <- c(t(mat%*%n + 
+                              # germ1stpop1(t = t, size = 1, x = n) + 
+                              germ1stpop2(t = t, size = 1, x = n) +
+                              # germ2ndpop1(t = t, size = 1, x = n) + 
+                              germ2ndpop2(t = t, size = 1, x = n) +
+                              # No_seeds1(t = t, size = 1, x = n) +
+                              No_caches_2_fire1(cones_2 = cones_2, t = t, size = 1, x = n)))  # Defines the intermediate population size
+            
+            n         <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
+            
+          } 
           
-          x <- mat %*% n  # Calculate intermediate population size
+          ## 2) FIRE IN 2 BUT NOT 1
           
-          ## Update parameters drawn from distributions/samples that must remain constant during each year
-          cones <- No_cones(t = t, size = 1) * rcones(x, tSinceFire = tSinceFire)
+          if(fire_current[1] == F & fire_current[2] == T){                  
+            
+            tSinceFire <- c(tSinceFire[1], 0)
+            
+            # Assuming stand replacing burn with no survival and no regeneration.
+            # Most fires go out with first snow. e.g., Romme 1982
+            mat      <- S_fire_2(t = t)
+            pops[i,] <- c(t(mat %*% n + 
+                              germ1stpop1(t = t, size = 1, x = n) +
+                              # germ1stpop2(t = t, size = 1, x = n) +
+                              germ2ndpop1(t = t, size = 1, x = n) +
+                              # germ2ndpop2(t = t, size = 1, x = n) +
+                              No_caches_1_fire2(cones_1 = cones_1, t = t, size = 1, x = n))) #+
+            # No_seeds2(t = t, size = 1, x = n)))  # Defines the intermediate population size
+            
+            n         <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
+            
+          }
           
-          caches1 <- No_caches_1_fire1
-          caches2 <- No_caches_2_fire1(cones[2], t = t, size = 1, x = x)
+          ## 3) FIRE IN BOTH
           
-          
-          pops[i,] <- c(t(x +
-                        germ1stpop2(t = t, size = 1, x = x, caches2 = caches2, tSinceFire = tSinceFire) +
-                        germ2ndpop2(t = t, size = 1, n = n, x = x, tSinceFire = tSinceFire)))
-          
-          n         <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
-          
-        } 
-        
-        ## 2) FIRE IN 2 BUT NOT 1
-        
-        if(fire_current[1] == F & fire_current[2] == T){                  
-          
-          tSinceFire <- c(tSinceFire[1], 0)
-          
-          
-          # Assuming stand replacing burn with no survival and no regeneration.
-          # Most fires go out with first snow. e.g., Romme 1982
-          mat      <- S_fire_2(t = t, tSinceFire = tSinceFire)
-          
-          x <- mat %*% n
-          
-          caches1 <- No_caches_1_fire2(cones_1 = cones[1], t = t, size = 1, x = n)
-          caches2 <- No_caches_2_fire2
-        
-          
-          pops[i,] <- c(t(x + 
-                            germ1stpop1(t = t, size = 1, x = x, caches1 = caches1, tSinceFire = tSinceFire) +
-                            germ2ndpop1(t = t, size = 1, n = n, x = x, tSinceFire = tSinceFire)))
-          
-          n         <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
+          if(fire_current[1] == T & fire_current[2] == T){                  
+            
+            cat(paste0("Extinction in iteration ", j, " year ",t,"\n"))
+            mat      <- S_fire_both(t = t)
+            pops[i,] <- c(t(mat %*% n))  # Defines the intermediate population size
+            
+            n         <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
+            
+          }
+          #--------------------------------------------------------------------------------------------------------------------------------------------              
+          #                                                 No fire in current year in either subpopulation
+          #--------------------------------------------------------------------------------------------------------------------------------------------              
+          else if(fire_current[1] == F & fire_current[2] == F){
+            # tSinceFire <- tSinceFire + 1
+            
+            mat <- S(t = t)
+            pops[i,]  <- c(t(mat%*%n + 
+                               germ1stpop1(t = t, size = 1, x = n) + 
+                               germ1stpop2(t = t, size = 1, x = n) + 
+                               germ2ndpop1(t = t, size = 1, x = n) + 
+                               germ2ndpop1(t = t, size = 1, x = n) + 
+                               No_caches_1_nofire(cones_1 = cones_1, cones_2 = cones_2,
+                                                  dispersal12 = dispersal12, dispersal21 = dispersal21, 
+                                                  t = t, size = 1, x = n) +
+                               No_caches_2_nofire(cones_1 = cones_1, cones_2 = cones_2, 
+                                                  dispersal12 = dispersal12, dispersal21 = dispersal21, 
+                                                  t = t, size = 1, x = n)))  # Defines the intermediate population size 
+            
+            n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
+            
+          } 
           
         }
-        
-        ## 3) FIRE IN BOTH
-        
-        if(fire_current[1] == T & fire_current[2] == T){                  
+        ##############################################################################################################################################            
+        ##                                                          FIRE = FALSE                    
+        ############################################################################################################################################## 
+        else if(fire == F){
+          fire_tracker[j*projection_time - (projection_time)+i,2:3] <- c(i, 0)
           
-          cat(paste0("***Extinction in iteration ", j, " year ",t,"***\n"))
-          mat      <- S_fire_both(t = t)
-          pops[i,] <- c(t(mat %*% n))  # Defines the intermediate population size
-          
-          n         <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
-          
-        }
-        #--------------------------------------------------------------------------------------------------------------------------------------------              
-        #                                                 No fire in current year in either subpopulation
-        #--------------------------------------------------------------------------------------------------------------------------------------------              
-        else if(fire_current[1] == F & fire_current[2] == F){
           # tSinceFire <- tSinceFire + 1
           
-          mat <- S(t = t, tSinceFire = tSinceFire)
+          mat <- S(t = t)
+          pops[i,] <- c(t(mat%*%n + germ1stpop1(t = t, size = 1, x = n) + 
+                            germ1stpop2(t = t, size = 1, x = n) +
+                            germ2ndpop1(t = t, size = 1, x = n) + 
+                            germ2ndpop2(t = t, size = 1, x = n) +
+                            No_caches_1_nofire(cones_1 = cones_1, cones_2 = cones_2, 
+                                               dispersal12 = dispersal12, dispersal21 = dispersal21, 
+                                               t = t, size = 1, x = n) +
+                            No_caches_2_nofire(cones_1 = cones_1, cones_2 = cones_2, 
+                                               dispersal12 = dispersal12, dispersal21 = dispersal21, 
+                                               t = t, size = 1, x = n)))  # Defines the intermediate population size
           
-          x <- mat%*%n
-          
-          cones <- No_cones(t = t, size = 1) * rcones(x, tSinceFire = tSinceFire)
-          
-          caches1 <- No_caches_1_nofire(cones_1 = cones[1], cones_2 = cones[2], dispersal12, dispersal21, t = t, size = 1, x = n)
-          caches2 <- No_caches_2_nofire(cones_1 = cones[1], cones_2 = cones[2], dispersal12, dispersal21, t = t, size = 1, x = n)
-          
-          
-          pops[i,]  <- c(t(x + 
-                             germ1stpop1(t = t, size = 1, x = x, caches1 = caches1, tSinceFire = tSinceFire) + 
-                             germ1stpop2(t = t, size = 1, x = x, caches2 = caches2, tSinceFire = tSinceFire) + 
-                             germ2ndpop1(t = t, size = 1, n = n, x = x, tSinceFire = tSinceFire) + 
-                             germ2ndpop2(t = t, size = 1, n = n, x = x, tSinceFire = tSinceFire)))  # Defines the intermediate population size 
-          
-          n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1)
-          
-        } 
-        
+          n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1) 
+        }
+        ############################################################################################################################################## 
       }
-      ##############################################################################################################################################            
-      ##                                                          FIRE = FALSE                    
-      ############################################################################################################################################## 
-      else if(fire == F){
-        fire_tracker[j*projection_time - (projection_time)+i,2:3] <- c(i, 0)
-        
-        mat <- S(t = t, tSinceFire = tSinceFire)
-        
-        x <- mat%*%n
-        
-        cones <- No_cones(t = t, size = 1) * rcones(x, tSinceFire = tSinceFire)
-        
-        # tSinceFire <- tSinceFire + 1
-        caches1 <- No_caches_1_nofire(cones_1 = cones[1], cones_2 = cones[2], dispersal12, dispersal21, t = t, size = 1, x = n)
-        caches2 <- No_caches_2_nofire(cones_1 = cones[1], cones_2 = cones[2], dispersal12, dispersal21, t = t, size = 1, x = n)
-        
-        pops[i,] <- c(t(x + 
-                          germ1stpop1(t = t, size = 1, x = x, caches1 = caches1, tSinceFire = tSinceFire) + 
-                          germ1stpop2(t = t, size = 1, x = x, caches2 = caches2, tSinceFire = tSinceFire) +
-                          germ2ndpop1(t = t, size = 1, n = n, x = x, tSinceFire = tSinceFire) + 
-                          germ2ndpop2(t = t, size = 1, n = n, x = x, tSinceFire = tSinceFire)))  # Defines the intermediate population size
-        
-        n <- as.matrix(pops[i,], nrow = length(pops[i,]), ncol = 1) 
-      }
-      ############################################################################################################################################## 
       if(i == 1){
         lambda[j*projection_time - (projection_time) + i, 2:3] <- c(i, NA)
       }else if(i != 1){
@@ -760,12 +735,14 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
     }
     
     pops <- cbind(pops, rep(1:projection_time))  # Appends matrix to keep track of time during iteration
+    
+    
     results[, ,j] <- pops                        # Combines iterations into a j dimensional array
     
   }
   
   pop_sizes <- plyr::adply(results, 3)           # Changes array to dataframe so easier to manipulate later
-  colnames(pop_sizes) <- c("Iteration", "SEED2_1", "CS_1", "SD_1", "SAP_1", "MA_1", "SEED2_2", "CS_2", "SD_2", "SAP_2", "MA_2", "t")
+  colnames(pop_sizes) <- c("Iteration", "SEED1_1", "SEED2_1", "CS_1", "SD_1", "SAP_1", "MA_1","SEED1_2", "SEED2_2", "CS_2", "SD_2", "SAP_2", "MA_2", "t")
   
   # fire_intervals <- cbind(iteration, intervals)  # Dataframe keeping track of fire return intervals
   
@@ -773,7 +750,6 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
   
   return(results)
 }
-
 
 ##############################################################################################################################################            
 ############################################################################################################################################## 
@@ -787,9 +763,9 @@ project <- function(projection_time, n0, reps = 100, FRI_decrease = T, fire = T)
 # n <- c(50000, 20000, 50000, 40000, 75000,  80000, 30000, 5000, 60000, 50000, 70000, 60000)
 
 # n <- c(20, 618, 79, 65, 91,  353, 30, 600, 50, 500, 120, 600)
-# n <- c(800, 300, 90, 75, 300, 700, 500, 600, 50, 500, 120, 600)
+n <- c(800, 300, 90, 75, 300, 700, 500, 600, 50, 500, 120, 600)
 
-projection <- project(projection_time = 100, n0 = n, reps = 5000) 
+projection <- project(projection_time = 100, n0 = n, reps = 50) 
 
 pop_sizes <- gather(projection$pop_sizes, Stage, Count, -Iteration, -t) %>%  
   filter(., !Stage == "SEED1_1") %>%          # Pop sizes in dataframe format
@@ -828,14 +804,13 @@ pop_sizes %>%
   theme(axis.text.x=element_text(size=18))  +
   theme(axis.title.y=element_text( size=18, vjust=2.75, face = "bold")) +
   theme(axis.text.y=element_text(size = 18)) +
-  labs(x = "Time (years)", y = expression("Density (no. trees/ " ~m^2~")")) +
   facet_wrap(~Population)
 
 
 pop_sizes %>% 
   filter(., Iteration %in% sample(seq(1,max(as.numeric(as.character(pop_sizes$Iteration))), 1), 15, replace = F)) %>%
-  ggplot(data = ., aes( x = Count, fill = Iteration))+
-  geom_histogram()+
+  ggplot(data = ., aes( x = Count, col = Iteration))+
+  geom_density()+
   facet_wrap(~ Population + Iteration, nrow = 2)+
   theme(legend.position = "none")
 
@@ -854,12 +829,15 @@ pop_sizes %>%
   summarise_at(., vars(Density), funs(median))
 
 
+
+
+
 ## Plot of projection iteration 1
 
-projection1 <- pop_sizes %>% 
-  filter(., Iteration == 1 & Population == 1)
+projection1 <- projection %>% 
+  filter(., Iteration == 1)
 
-ggplot(data = projection1, aes(x = t, y = Density)) +  # plot pop sizes for all iterations.
+ggplot(data = projection1, aes(x = t, y = Count)) +  # plot pop sizes for all iterations.
   geom_line(lwd = 1) +
   theme(legend.position="none") +
   theme(axis.title.x=element_text( size=18, vjust=0)) +
@@ -870,7 +848,7 @@ ggplot(data = projection1, aes(x = t, y = Density)) +  # plot pop sizes for all 
 ## Plot of projection iteration 1 for t = 30 years
 
 projection1t30 <- projection1 %>% 
-  filter(., t < 30)
+  filter(., t < 3)
 
 ggplot(data = projection1t30, aes(x = t, y = Count)) +  # plot pop sizes for all iterations.
   geom_point() +
@@ -882,7 +860,7 @@ ggplot(data = projection1t30, aes(x = t, y = Count)) +  # plot pop sizes for all
   theme(axis.text.y=element_text(size = 18))
 
 
-hist(pop_sizes$Density[pop_sizes$t == 100], breaks = 20,
+hist(projection$Count[projection$t == 500], breaks = 20,
      main = "", xlab = "Population size at time = 500 years")
 
 ##-----------------------------------------------------------##
